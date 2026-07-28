@@ -836,7 +836,7 @@ function cvar(name){ return getComputedStyle(document.documentElement).getProper
 /* ============ FIG 1 — observed prices ============ */
 function renderPrices(){
   const F = figure("fig1","Observed industrial electricity prices, 2010\u20132025",
-    "Real 2025 USD/MWh, excl. VAT, energy taxes included", null);
+    "", null);
   const wrap = div("panels eqhead", F.body);
   const CFG = [
     ["medium","Medium industry \u2014 20 GWh a year, 5,000 hours, HV distribution"],
@@ -845,6 +845,7 @@ function renderPrices(){
   CFG.forEach(([arch,ptitle])=>{
     const pd = div("panel", wrap); pd.style.flexBasis="420px";
     div("ptitle", pd, ptitle);
+    div("punit", pd, "$/MWh (real 2025)");
     const P = DATA.prices[arch];
     const series = [
       {label:"United Kingdom", color:cvar("--uk"), values:P.UK.obs, endLabel:"UK"},
@@ -866,7 +867,7 @@ function renderPrices(){
       {label:"China", values:P.CN.E},
     ], "View data \u2014 " + (arch==="medium"?"medium":"large") + " industry (real 2025 USD/MWh)");
   });
-  F.caption('<b>Bands.</b> Medium: UK QEP Large (20&ndash;70 GWh/yr), Germany Eurostat ID (2&ndash;20 GWh), China \u5927\u5de5\u4e1a at 1&ndash;10 kV. Large: UK QEP Extra Large (&gt;150 GWh/yr), Germany Eurostat IF (70&ndash;150 GWh), China the same class at 220 kV. The 20 GWh archetype sits at the bottom edge of the UK band and the top edge of the German one, so the UK average is drawn from firms mostly larger than it, the German mostly smaller. <b>Sources.</b> <a href="https://www.gov.uk/government/statistical-data-sets/gas-and-electricity-prices-in-the-non-domestic-sector" target="_blank" rel="noopener">DESNZ Quarterly Energy Prices</a> table 3.4.2, incl. CCL; <a href="https://ec.europa.eu/eurostat/databrowser/view/nrg_pc_205/default/table" target="_blank" rel="noopener">Eurostat nrg_pc_205</a>, excl. VAT; Chinese provincial catalogue schedules to Oct 2021, then grid agency-purchase notices and <a href="https://www.ndrc.gov.cn/xxgk/zcfb/tz/202305/t20230515_1355747.html" target="_blank" rel="noopener">NDRC T&amp;D schedules</a>, weighted by 2024 provincial consumption. China runs no equivalent survey; from 2022 the medium line is Jiangsu only.');
+  F.caption('Prices exclude VAT and include energy taxes. <b>Bands.</b> Medium: UK QEP Large (20&ndash;70 GWh/yr), Germany Eurostat ID (2&ndash;20 GWh), China \u5927\u5de5\u4e1a at 1&ndash;10 kV. Large: UK QEP Extra Large (&gt;150 GWh/yr), Germany Eurostat IF (70&ndash;150 GWh), China the same class at 220 kV. The 20 GWh archetype sits at the bottom edge of the UK band and the top edge of the German one, so the UK average is drawn from firms mostly larger than it, the German mostly smaller. <b>Sources.</b> <a href="https://www.gov.uk/government/statistical-data-sets/gas-and-electricity-prices-in-the-non-domestic-sector" target="_blank" rel="noopener">DESNZ Quarterly Energy Prices</a> table 3.4.2, incl. CCL; <a href="https://ec.europa.eu/eurostat/databrowser/view/nrg_pc_205/default/table" target="_blank" rel="noopener">Eurostat nrg_pc_205</a>, excl. VAT; Chinese provincial catalogue schedules to Oct 2021, then grid agency-purchase notices and <a href="https://www.ndrc.gov.cn/xxgk/zcfb/tz/202305/t20230515_1355747.html" target="_blank" rel="noopener">NDRC T&amp;D schedules</a>, weighted by 2024 provincial consumption. China runs no equivalent survey; from 2022 the medium line is Jiangsu only.');
 }
 
 /* ============ FIG 2 \u2014 output, two panels in one card ============ */
@@ -1030,7 +1031,7 @@ function renderFig5(){
 /* ============ FIG 6 — hedging: as-procured vs spot ============ */
 function renderFig6(){
   const F = figure("fig6","Where hedging shows up: the same bill priced as-procured vs at spot",
-    "Real 2025 USD/MWh",
+    "",
     [{label:"Medium industry", value:"medium"},{label:"Large industry", value:"large"}]);
   function draw(arch){
     F.clearBody();
@@ -1039,6 +1040,7 @@ function renderFig6(){
     CELLS.forEach(([c,title])=>{
       const pd = div("panel", wrap); pd.style.flexBasis="420px";
       div("ptitle", pd, title + " \u2014 " + (arch==="medium" ? "medium industry" : "large industry"));
+      div("punit", pd, "$/MWh (real 2025)");
       const P = DATA.prices[arch][c];
       const mm = c==="UK" ? DATA.cssWedge.measuredFilled : DATA.deWedge.measuredFilled;
       const addM = (arr)=>arr.map((v,i)=> v==null ? null : v + mm[i]);
@@ -1429,15 +1431,16 @@ function renderFig10(){
 /* ============ FIG 7 — gas-SRMC identity (Q94) ============ */
 function renderFig7(){
   const F = figure("fig7","The identity test: day-ahead power vs the marginal cost of gas-fired generation",
-    "Nominal local currency per MWh", null);
+    "", null);
   const wrap = div("panels eqhead", F.body);
   const CFG = [
-    ["uk","United Kingdom \u2014 \u00a3/MWh \u00b7 SRMC from 2013","--uk"],
-    ["de","Germany \u2014 \u20ac/MWh \u00b7 SRMC from 2012","--de"]
+    ["uk","United Kingdom","\u00a3/MWh (nominal) \u00b7 SRMC from 2013","--uk"],
+    ["de","Germany","\u20ac/MWh (nominal) \u00b7 SRMC from 2012","--de"]
   ];
-  CFG.forEach(([key,ptitle,cv])=>{
+  CFG.forEach(([key,ptitle,punit,cv])=>{
     const pd = div("panel", wrap); pd.style.flexBasis="420px";
     div("ptitle", pd, ptitle);
+    div("punit", pd, punit);
     const R = DATA.srmc[key];
     const series = [
       {label:"Gas SRMC (50% eff.)", color:cvar(cv), values:R.c,
@@ -1569,7 +1572,7 @@ function renderFig14(){
 
 /* ============ FIGS 15-16 — grid charges isolated ============ */
 function renderFig15(){
-  const F = figure("fig15","Network and balancing charges, isolated","The grid layer of the section-3 stacks on its own \u2014 real 2025 USD/MWh, by archetype");
+  const F = figure("fig15","Network and balancing charges, isolated","The grid layer of the section-3 stacks on its own");
   const g = DATA.grid, yrs = DATA.years;
   const LBL = {ukLgE1:"UK, unrelieved", ukLgE2:"UK, relieved", deLgE1:"Germany, unrelieved", deLgE2:"Germany, relieved",
                ukMdE1:"UK, unrelieved", ukMdE2:"UK, relieved", deMdE1:"Germany, unrelieved", deMdE2:"Germany, relieved"};
@@ -1583,6 +1586,7 @@ function renderFig15(){
   ].forEach(p=>{
     const pd = div("panel", wrap);
     div("ptitle", pd, p[0]);
+    div("punit", pd, "$/MWh (real 2025)");
     lineChart(pd, {years: yrs, w: 460, h: 330, ymaxOverride: 60, tip: F.tip, fig: F.fig,
       series: p[1].map(t=>({label: LBL[t[0]], color:t[1], dash:t[2], values:g[t[0]]}))});
   });
@@ -1594,13 +1598,13 @@ function renderFig15(){
   ]);
 }
 function renderFig16(){
-  const F = figure("fig16","The British grid charge, split into wires and balancing","Unrelieved, real 2025 USD/MWh");
+  const F = figure("fig16","The British grid charge, split into wires and balancing","Unrelieved");
   const g = DATA.grid;
   stackPanels(F.body, {years: DATA.years, ymaxOverride: 60, tip: F.tip, fig: F.fig, panels: [
-    {title:"Large \u2014 500 GWh", segs:[
+    {title:"Large \u2014 500 GWh", unit:"$/MWh (real 2025)", segs:[
       {label:"Wires", color:"var(--bn)", values:g.wiresLg},
       {label:"Balancing (BSUoS)", color:"var(--bm)", values:g.bsuos}]},
-    {title:"Medium \u2014 20 GWh", segs:[
+    {title:"Medium \u2014 20 GWh", unit:"$/MWh (real 2025)", segs:[
       {label:"Wires", color:"var(--bn)", values:g.wiresMd},
       {label:"Balancing (BSUoS)", color:"var(--bm)", values:g.bsuos}]}
   ]});
