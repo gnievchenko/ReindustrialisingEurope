@@ -984,7 +984,7 @@ function bucketPanels(figId, useCase, title, sub, capNote){
 /* ============ FIG 5 — all-in with relief ============ */
 function renderFig5(){
   const F = figure("fig5","The all-in price with relief",
-    "Modelled all-in totals for a site holding full exemptions \u2014 real 2025 USD/MWh", null);
+    "Modelled all-in totals for a site holding full exemptions", null);
   const wrap = div("panels eqhead", F.body);
   const CFG = [
     ["medium","Medium industry \u2014 20 GWh a year, 5,000 hours"],
@@ -993,6 +993,7 @@ function renderFig5(){
   CFG.forEach(([arch,ptitle])=>{
     const pd = div("panel", wrap); pd.style.flexBasis="420px";
     div("ptitle", pd, ptitle);
+    div("punit", pd, "$/MWh (real 2025)");
     const P = DATA.prices[arch];
     const aU = a=>a.map((v,i)=> v==null ? null : v + DATA.cssWedge.measuredFilled[i]);
     const aD = a=>a.map((v,i)=> v==null ? null : v + DATA.deWedge.measuredFilled[i]);
@@ -1002,7 +1003,7 @@ function renderFig5(){
        band: arch==="large" ? {lo:aD(P.DE.E2lo), hi:aD(P.DE.E2hi), color:cvar("--de")} : null},
       {label:"China \u2014 documented tariff", color:cvar("--cn"), values:P.CN.E, endLabel:"CN"},
     ];
-    lineChart(pd, {years:DATA.years, series, tip:F.tip, fig:F.fig, endLabels:true, w:470, h:360, ymaxOverride:450});
+    lineChart(pd, {years:DATA.years, series, tip:F.tip, fig:F.fig, endLabels:true, w:470, h:360, ymaxOverride:500});
   });
   F.legend([
     {label:"UK \u2014 with exemptions, incl. supplier costs", color:cvar("--uk"), line:true},
