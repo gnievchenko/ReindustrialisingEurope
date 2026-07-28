@@ -871,12 +871,13 @@ function renderPrices(){
 
 /* ============ FIG 2 \u2014 output, two panels in one card ============ */
 function renderOutput(){
-  const F = figure("fig2","Industrial output, 2010 = 100",
+  const F = figure("fig2","Industrial output by country",
     "", null);
   const wrap = div("panels eqhead", F.body);
 
   const p1 = div("panel", wrap); p1.style.flexBasis="420px";
   div("ptitle", p1, "Energy-intensive \u2014 steel, aluminium, cement, paper");
+  div("punit", p1, "2010 = 100");
   const O = DATA.output.compositeVW;
   const s1 = ["UK","DE","CN"].map(c=>({
     label:{UK:"United Kingdom",DE:"Germany",CN:"China"}[c], color:cvar("--"+c.toLowerCase()),
@@ -885,7 +886,8 @@ function renderOutput(){
   lineChart(p1, {years:DATA.years, series:s1, tip:F.tip, fig:F.fig, endLabels:true, w:470, h:360});
 
   const p2 = div("panel", wrap); p2.style.flexBasis="420px";
-  div("ptitle", p2, "Total industrial output \u2014 the benchmark");
+  div("ptitle", p2, "Total industrial output");
+  div("punit", p2, "2010 = 100");
   const M = DATA.output.manufacturing;
   const s2 = ["UK","DE","CN"].map(c=>({
     label:{UK:"United Kingdom",DE:"Germany",CN:"China"}[c], color:cvar("--"+c.toLowerCase()), values:M[c], endLabel:c
