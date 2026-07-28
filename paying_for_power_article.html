@@ -836,7 +836,7 @@ function cvar(name){ return getComputedStyle(document.documentElement).getProper
 /* ============ FIG 1 — observed prices ============ */
 function renderPrices(){
   const F = figure("fig1","Observed industrial electricity prices, 2010\u20132025",
-    "Real 2025 USD/MWh, excl. VAT, energy taxes included.", null);
+    "Real 2025 USD/MWh, excl. VAT, energy taxes included", null);
   const wrap = div("panels eqhead", F.body);
   const CFG = [
     ["medium","Medium industry \u2014 20 GWh a year, 5,000 hours, HV distribution"],
@@ -872,7 +872,7 @@ function renderPrices(){
 /* ============ FIG 2 \u2014 output, two panels in one card ============ */
 function renderOutput(){
   const F = figure("fig2","Industrial output, 2010 = 100",
-    "The two panels use different axes.", null);
+    "", null);
   const wrap = div("panels eqhead", F.body);
 
   const p1 = div("panel", wrap); p1.style.flexBasis="420px";
@@ -900,7 +900,7 @@ function renderOutput(){
   tableView(F.fig, DATA.years, s1.map(x=>({label:x.label, values:x.values})), "View data \u2014 energy-intensive composite (index, 2010 = 100)");
   tableView(F.fig, DATA.years, ["UK","DE","CN"].map(c=>({label:DATA.output.mfg_labels[c], values:M[c]})), "View data \u2014 total industrial output (index, 2010 = 100)");
   tableView(F.fig, DATA.years, ["UK","DE","CN"].map(c=>({label:c+" energy-intensive divisions (17, 19, 20, 23, 24)", values:DATA.output.eiAgg[c].c})), "View data \u2014 five-division energy-intensive aggregate (index, 2010 = 100)");
-  F.caption('The energy-intensive composite is drawn beside the whole-sector benchmark it should be read against. <b>Left.</b> Weights are EU27 value added for the matching NACE industry classes (the EU&rsquo;s statistical classification) in 2010 &mdash; steel 44%, paper 28%, aluminium 15%, cement 13% &mdash; applied identically to all three countries, so the basket is like-for-like rather than three differently-shaped ones. The band spans three weightings \u2014 the same value-added weights applied as an arithmetic and as a geometric mean, plus a scope-adjusted set that trims aluminium\u2019s weight to the primary-only share of its statistical class \u2014 and the ranking and magnitudes hold under all three. <b>Right.</b> Whole-sector output, and the definitions are not identical: the UK and German lines are manufacturing (NACE section C), while China\'s covers all industry including mining and utilities, and only firms above a revenue threshold raised in 2011. <b>Sources.</b> <a href="https://worldsteel.org/data/" target="_blank" rel="noopener">worldsteel</a>, <a href="https://international-aluminium.org/statistics/primary-aluminium-production/" target="_blank" rel="noopener">IAI</a>, <a href="https://www.ons.gov.uk/economy/economicoutputandproductivity/output/datasets/indexofproduction" target="_blank" rel="noopener">ONS</a>, <a href="https://ec.europa.eu/eurostat/databrowser/view/sts_inpr_a/default/table" target="_blank" rel="noopener">Eurostat</a>, <a href="https://www.stats.gov.cn/sj/" target="_blank" rel="noopener">NBS</a>. 2025 shown only where all four products are reported.');
+  F.caption('The energy-intensive composite is drawn beside the whole-sector benchmark it should be read against; the two panels use different axes. <b>Left.</b> Weights are EU27 value added for the matching NACE industry classes (the EU&rsquo;s statistical classification) in 2010 &mdash; steel 44%, paper 28%, aluminium 15%, cement 13% &mdash; applied identically to all three countries, so the basket is like-for-like rather than three differently-shaped ones. The band spans three weightings \u2014 the same value-added weights applied as an arithmetic and as a geometric mean, plus a scope-adjusted set that trims aluminium\u2019s weight to the primary-only share of its statistical class \u2014 and the ranking and magnitudes hold under all three. <b>Right.</b> Whole-sector output, and the definitions are not identical: the UK and German lines are manufacturing (NACE section C), while China\'s covers all industry including mining and utilities, and only firms above a revenue threshold raised in 2011. <b>Sources.</b> <a href="https://worldsteel.org/data/" target="_blank" rel="noopener">worldsteel</a>, <a href="https://international-aluminium.org/statistics/primary-aluminium-production/" target="_blank" rel="noopener">IAI</a>, <a href="https://www.ons.gov.uk/economy/economicoutputandproductivity/output/datasets/indexofproduction" target="_blank" rel="noopener">ONS</a>, <a href="https://ec.europa.eu/eurostat/databrowser/view/sts_inpr_a/default/table" target="_blank" rel="noopener">Eurostat</a>, <a href="https://www.stats.gov.cn/sj/" target="_blank" rel="noopener">NBS</a>. 2025 shown only where all four products are reported.');
 }
 
 /* ============ FIG 3 / FIG 4 — component stacks ============ */
@@ -982,7 +982,7 @@ function bucketPanels(figId, useCase, title, sub, capNote){
 /* ============ FIG 5 — all-in with relief ============ */
 function renderFig5(){
   const F = figure("fig5","The all-in price with relief",
-    "Modelled all-in totals for a site holding full exemptions \u2014 real 2025 USD/MWh.", null);
+    "Modelled all-in totals for a site holding full exemptions \u2014 real 2025 USD/MWh", null);
   const wrap = div("panels eqhead", F.body);
   const CFG = [
     ["medium","Medium industry \u2014 20 GWh a year, 5,000 hours"],
@@ -1027,7 +1027,7 @@ function renderFig5(){
 /* ============ FIG 6 — hedging: as-procured vs spot ============ */
 function renderFig6(){
   const F = figure("fig6","Where hedging shows up: the same bill priced as-procured vs at spot",
-    "Real 2025 USD/MWh \u00b7 exempt case in both countries; toggle between the archetypes.",
+    "Real 2025 USD/MWh",
     [{label:"Medium industry", value:"medium"},{label:"Large industry", value:"large"}]);
   function draw(arch){
     F.clearBody();
@@ -1086,7 +1086,7 @@ function labelCharts(){
 /* ============ FIG 9 — nuclear costs across countries ============ */
 function renderFig9(){
   const F = figure("fig9","Nuclear cost, three tiers: keep it, build it where it's routine, build it in the West",
-    "Real 2025 USD/MWh.", null);
+    "Real 2025 USD/MWh", null);
   const CVX = {UK:"--uk", DE:"--de", CN:"--cn", XX:"--bx"};
   const W = 940, RH = 24, GH = 30, MT = 4, MB = 28, ML = 236, MR = 64;
   let H = MT + MB;
@@ -1422,7 +1422,7 @@ function renderFig10(){
 /* ============ FIG 7 — gas-SRMC identity (Q94) ============ */
 function renderFig7(){
   const F = figure("fig7","The identity test: day-ahead power vs the marginal cost of gas-fired generation",
-    "Nominal local currency per MWh \u2014 the one chart in this essay not in real USD.", null);
+    "Nominal local currency per MWh", null);
   const wrap = div("panels eqhead", F.body);
   const CFG = [
     ["uk","United Kingdom \u2014 \u00a3/MWh \u00b7 SRMC from 2013","--uk"],
@@ -1458,7 +1458,7 @@ function renderFig7(){
 /* ============ FIG 8 — LCOE anchors (Q94) ============ */
 function renderFig8(){
   const F = figure("fig8","What the anchors cost: levelized cost of generation",
-    "Real 2025 USD/MWh \u2014 grouped by country, cheapest first.", null);
+    "Real 2025 USD/MWh", null);
   const NAME = {CN:"China", UK:"United Kingdom", DE:"Germany"};
   const CVX = {CN:"--cn", UK:"--uk", DE:"--de"};
   const mid = r => r.lo==null ? r.hi : (r.lo+r.hi)/2;
@@ -1518,7 +1518,7 @@ function renderFig8(){
 /* ============ FIG 14 — construction schedule record (S206) ============ */
 function renderFig14(){
   const F = figure("fig14","Promised and delivered: the schedule record of the newest builds",
-    "Years from first structural concrete to commercial operation.", null);
+    "Years from first structural concrete to commercial operation", null);
   const NAMES={PK:"Pakistan",CN:"China",BY:"Belarus",AE:"UAE",RU:"Russia",KR:"South Korea",US:"United States",UK:"United Kingdom",IN:"India",FR:"France",FI:"Finland"};
   const rows=DATA.delays.rows;
   const W=940, RH=26, MT=8, MB=30, ML=268, MR=150;
@@ -1608,10 +1608,10 @@ function renderAll(){
 renderPrices(); renderOutput();
 bucketPanels("fig3","E1",
   "The bill decomposed — before any exemption",
-  "Modelled components for an industrial site paying full published rates ('without exemptions').",
+  "Modelled components for an industrial site paying full published rates ('without exemptions')",
   'UK includes CSS-measured supplier retail costs + margin (2012\u201324 measured; 2010\u201311 & 2025 imputed); Germany includes the equivalent segment from BNetzA (2025 measured, held constant). China\'s catalogue tariff cannot be split into components before the 2022 reform and is shown bundled (grey). <b>The two supplier segments are not measured the same way.</b> The UK figure is the volume-weighted non-domestic average from <a href="https://www.ofgem.gov.uk/transparency-document/energy-companies-consolidated-segmental-statements-css" target="_blank" rel="noopener">Ofgem CSS</a> filings, measured 2012&ndash;24 with 2010&ndash;11 and 2025 imputed at the period average ($14.3/MWh). The German figure is BNetzA&rsquo;s &ldquo;Vertrieb und Marge&rdquo; for a 24 GWh customer &mdash; $20.0/MWh at 1 April 2025, the mean of 127 suppliers, held flat across the span (first published year): read the level, not the shape. That case is close to a direct read on the medium archetype and a ceiling on the large one. On this like-for-like footing supplier costs and margin are <b>not</b> a UK&ndash;Germany differentiator.');bucketPanels("fig4","E2",
   "The bill decomposed — with full exemptions",
-  "The same decomposition for a site holding full EII/BesAR-era relief status ('with exemptions').",
+  "The same decomposition for a site holding full EII/BesAR-era relief status ('with exemptions')",
   'China repeats the previous chart: no relief tier exists. UK relief: 85% renewables-levy exemption from 2018, 100% from Apr 2024, network compensation from 2025. Germany: EEG cap to 2022, &sect;19 StromNEV network floor. Both panels keep the supplier segment of the previous chart &mdash; an exempt firm still buys through a supplier. The remaining gap to the observed line is mostly band mix &mdash; and no longer a guess: measured through suppliers&rsquo; <a href="https://www.ofgem.gov.uk/sites/default/files/2026-03/RO_24-25_SY23_Annual_Report-20260327121336.pdf" target="_blank" rel="noopener">Renewables Obligation returns</a>, exempted volume was 14.5% of industrial electricity consumption in 2024&ndash;25, so the QEP average is roughly 85% weighted to firms that do not hold the exemptions this stack assumes.');
 renderFig5(); renderFig6(); renderFig7(); renderFig8(); renderFig9(); renderFig14(); renderFig10(); renderLadder(); renderFig12(); renderFig15(); renderFig16();
 labelCharts();
