@@ -1362,9 +1362,8 @@ function renderFig10(){
   ]);
   const pd2 = div("panel", wrap); pd2.style.flexBasis="420px";
   div("ptitle", pd2, "Proven reserves vs capital spending");
-  div("punit", pd2, "TWh (bars) \u00b7 real-2024 \u00a3bn (line)");
   const box = div("chartbox", pd2);
-  const W=470,Hh=340,M={l:52,r:42,t:12,b:30};
+  const W=470,Hh=340,M={l:52,r:46,t:34,b:30};
   const svg=svgel("svg",{viewBox:`0 0 ${W} ${Hh}`, role:"img"},box);
   const iw=W-M.l-M.r, ih=Hh-M.t-M.b;
   const i0=NS.years.indexOf(NS.resYears[0]);          // reserves series starts 2015 — match the capex line to it
@@ -1372,9 +1371,11 @@ function renderFig10(){
   const slot=iw/YR.length;
   const Xc=i=>M.l+slot*(i+0.5);
   const bw=slot*0.7;
-  const ymax=7800, Yv=v=>M.t+ih-v/ymax*ih;
+  const ymax=8000, Yv=v=>M.t+ih-v/ymax*ih;
   const ymaxR=26, Yr=v=>M.t+ih-v/ymaxR*ih;
-  [0,2000,4000,6000].forEach(t=>{
+  svgel("text",{x:M.l-8,y:M.t-12,"text-anchor":"end","font-size":11.5,fill:"var(--muted)","font-family":"system-ui,sans-serif"},svg).textContent="TWh";
+  svgel("text",{x:W-2,y:M.t-12,"text-anchor":"end","font-size":11.5,fill:"var(--muted)","font-family":"system-ui,sans-serif"},svg).textContent="real-2024 \u00a3bn";
+  [0,2000,4000,6000,8000].forEach(t=>{
     svgel("line",{x1:M.l,x2:W-M.r,y1:Yv(t),y2:Yv(t),stroke:"var(--grid)","stroke-width":1},svg);
     svgel("text",{x:M.l-8,y:Yv(t)+4,"text-anchor":"end","font-size":11.5,fill:"var(--muted)","font-family":"system-ui,sans-serif"},svg).textContent=fmt0(t);
   });
@@ -1416,7 +1417,7 @@ function renderFig10(){
   legendInto(pd2, [
     {label:"Gas reserves", color:cvar("--muted")},
     {label:"Oil & liquids reserves", color:tint(cvar("--muted"), .42)},
-    {label:"E&P capex \u2014 right axis", color:cvar("--ink2"), line:true},
+    {label:"E&P capex", color:cvar("--ink2"), line:true},
   ]);
   tableView(F.fig, NS.years, [
     {label:"UKCS gas production (TWh)", values:NS.prod},
