@@ -1226,7 +1226,8 @@ function renderFig12(){
   const wrap = div("panels eqhead", F.body);
   const R = DATA.rent;
   const pd1 = div("panel", wrap); pd1.style.flexBasis="420px";
-  div("ptitle", pd1, "Delivered cost by route — USD/MMBtu");
+  div("ptitle", pd1, "Delivered cost by route");
+  div("punit", pd1, "USD/MMBtu");
   const box1 = div("chartbox", pd1);
   const W=470,Hh=350,M={l:44,r:14,t:16,b:46};
   const svg1=svgel("svg",{viewBox:`0 0 ${W} ${Hh}`, role:"img"},box1);
@@ -1261,11 +1262,12 @@ function renderFig12(){
     hitr.addEventListener("pointerleave", ()=>F.tip.hide());
   });
   const pd2 = div("panel", wrap); pd2.style.flexBasis="420px";
-  div("ptitle", pd2, "A UKCS therm, 2025 — £/MWh");
+  div("ptitle", pd2, "A UKCS therm, 2025");
+  div("punit", pd2, "£/MWh");
   const box2 = div("chartbox", pd2);
   const svg2=svgel("svg",{viewBox:`0 0 ${W} ${Hh}`, role:"img"},box2);
-  const ymax2=35, Y2=v=>M.t+ih-v/ymax2*ih;
-  [0,10,20,30].forEach(t=>{
+  const ymax2=40, Y2=v=>M.t+ih-v/ymax2*ih;
+  [0,10,20,30,40].forEach(t=>{
     svgel("line",{x1:M.l,x2:W-M.r,y1:Y2(t),y2:Y2(t),stroke:"var(--grid)","stroke-width":1},svg2);
     svgel("text",{x:M.l-8,y:Y2(t)+4,"text-anchor":"end","font-size":11.5,fill:"var(--muted)","font-family":"system-ui,sans-serif"},svg2).textContent="£"+t;
   });
@@ -1344,7 +1346,8 @@ function renderFig10(){
     "", null);
   const wrap = div("panels eqhead", F.body);
   const pd1 = div("panel", wrap); pd1.style.flexBasis="420px";
-  div("ptitle", pd1, "UK gas production vs consumption \u2014 TWh/yr");
+  div("ptitle", pd1, "UK gas production vs consumption");
+  div("punit", pd1, "TWh/yr");
   const NS = DATA.ns;
   lineChart(pd1, {years:NS.years, series:[
     {label:"UK consumption", color:cvar("--ink2"), values:NS.cons, endLabel:String(Math.round(NS.cons[NS.cons.length-1]))},
@@ -1356,7 +1359,8 @@ function renderFig10(){
     {label:"UKCS production", color:cvar("--uk"), line:true},
   ]);
   const pd2 = div("panel", wrap); pd2.style.flexBasis="420px";
-  div("ptitle", pd2, "Proven reserves (TWh) vs capital spending (\u00a3bn)");
+  div("ptitle", pd2, "Proven reserves vs capital spending");
+  div("punit", pd2, "TWh (bars) \u00b7 real-2024 \u00a3bn (line)");
   const box = div("chartbox", pd2);
   const W=470,Hh=340,M={l:52,r:42,t:12,b:30};
   const svg=svgel("svg",{viewBox:`0 0 ${W} ${Hh}`, role:"img"},box);
@@ -1467,7 +1471,7 @@ function renderFig8(){
   const mid = r => r.lo==null ? r.hi : (r.lo+r.hi)/2;
   const GROUPS = ["CN","UK","DE"].map(c => [c,
     DATA.lcoeAnchors.filter(r=>r.c===c).slice().sort((x,y)=>mid(x)-mid(y))]);
-  const W = 940, RH = 24, GH = 30, MT = 4, MB = 28, ML = 150, MR = 64;
+  const W = 940, RH = 24, GH = 30, MT = 24, MB = 10, ML = 150, MR = 64;
   let H = MT + MB;
   GROUPS.forEach(([c,rows])=>{ H += GH + rows.length*RH; });
   const box = div("chartbox", F.body);
@@ -1476,11 +1480,11 @@ function renderFig8(){
   const X = v => ML + v/xmax*(W-ML-MR);
   [0,50,100,150,200].forEach(t=>{
     svgel("line",{x1:X(t),x2:X(t),y1:MT,y2:H-MB,stroke:"var(--grid)","stroke-width":1},svg);
-    svgel("text",{x:X(t),y:H-10,"text-anchor":"middle","font-size":11.5,fill:"var(--muted)","font-family":"system-ui,sans-serif"},svg).textContent="$"+t;
+    svgel("text",{x:X(t),y:16,"text-anchor":"middle","font-size":11.5,fill:"var(--muted)","font-family":"system-ui,sans-serif"},svg).textContent="$"+t;
   });
   const COAL = 66.7; // Chinese coal — the anchor the tariff is priced off
   svgel("line",{x1:X(COAL),x2:X(COAL),y1:MT,y2:H-MB,stroke:"var(--ink2)","stroke-width":1.4,"stroke-dasharray":"4 4"},svg);
-  const cl = svgel("text",{x:X(COAL)+6,y:MT+12,"font-size":11,"font-weight":650,fill:"var(--ink2)","font-family":"system-ui,sans-serif"},svg);
+  const cl = svgel("text",{x:X(COAL)+6,y:MT+16,"font-size":11,"font-weight":650,fill:"var(--ink2)","font-family":"system-ui,sans-serif"},svg);
   cl.textContent = "Chinese coal \u2014 $67";
   let y = MT;
   GROUPS.forEach(([ctry,rows])=>{
