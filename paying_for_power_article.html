@@ -149,15 +149,15 @@
 <header class="hero">
   <div class="byline">Gniewomir Flis · 27 July 2026</div>
   <h1>Why are British industrial electricity rates so high?</h1>
-  <p class="standfirst">Britain’s heavy industry has halved in fifteen years, and Europe is losing energy-intensive production to China. The issue is real and complex; but many online commenters like to reduce the discussion to high industrial electricity prices, and blame net-zero policies for this outcome.</p>
-  <p class="standfirst">Not satisfied with this overly reductive framing, I set out to uncover how much more expensive European electricity prices really are, what is driving the wedge, and whether popular solutions — a nuclear renaissance, a North Sea drilling campaign, or filling the wires back up — are credible policy answers.</p>
+  <p class="standfirst">Britain’s heavy industry has halved in fifteen years, and Europe is losing industrial capacity to China — so goes the narrative. The issue is real and complex; but many online commenters like to reduce the discussion to high industrial electricity prices, and blame net-zero policies for this outcome.</p>
+  <p class="standfirst">Not satisfied with this overly reductive framing, I set out to uncover how much more expensive European electricity prices really are, what is driving the wedge, and whether popular solutions — a nuclear renaissance, a North Sea drilling campaign, or halting spiralling network costs — are credible policy answers.</p>
 </header>
 
 <main>
   <h2><span class="secno">1</span>Industrial archetypes</h2>
-  <p>Industrial activity is a broad term. It encompasses anything from mom-and-pop bakeries on the local high street to multi-acre integrated steelworks. Most countries aggregate industrial electricity statistics into consumption bands — any business drawing between 2 and 20 GWh a year falls into the same one. In addition to generation cost, electricity tariffs typically include network charges, levies, and taxes, which can again differ depending on the user’s voltage, power draw or activity.</p>
+  <p>Industrial activity is a broad term. It encompasses anything from mom-and-pop bakeries on the local high street to multi-acre integrated steelworks. Most countries aggregate industrial electricity statistics into consumption bands — for instance, in the UK any business drawing between 2 and 20 GWh a year falls into the same statistical band. In addition to generation cost, electricity tariffs typically include network charges, levies, and taxes, which can again differ depending on the user’s voltage, power draw or activity.</p>
   <p>Therefore, in attempting to reconstruct a ‘typical’ electricity tariff, one has to define what a ‘typical’ industrial user is. But the truth is there is no ‘typical’ industrial user. Even within the same industry different business models and technologies will change the profile of power demand.</p>
-  <p>Still, for the purpose of this analysis, I have come up with two archetypes: large, and medium-sized industrial users, which I believe are a close-enough proxy. They differ not only by annual energy consumption, which defines the type of network they would plug into — transmission vs. distribution — but also by their uptime. The two archetypes are summarised below:</p>
+  <p>Still, for the purpose of this analysis, I have come up with two archetypes: large, and medium-sized industrial users, which I believe are a reasonable proxy. They differ not only by annual energy consumption, which defines the type of network they would plug into — transmission vs. distribution — but also by their uptime. The two archetypes are summarised below:</p>
 
   <div class="archrow sans">
     <div class="arch">
@@ -183,41 +183,45 @@
   <p>Both archetypes are deliberately best-practice sites assuming flat load, optimal connection.</p>
   <p>From here on, every figure reporting a price does so in real 2025 US dollars per MWh at annual-average market exchange rates (<a href="https://www.federalreserve.gov/releases/h10/" target="_blank" rel="noopener">Federal Reserve H.10/G.5A</a>).</p>
 
-  <h2><span class="secno">2</span>What industry actually pays — and what it makes</h2>
-  <p>To begin, we will look at the records of historical prices paid by industry. I call them ‘observed’ prices. The data can be found in DESNZ’s <a href="https://www.gov.uk/government/statistical-data-sets/gas-and-electricity-prices-in-the-non-domestic-sector" target="_blank" rel="noopener">Quarterly Energy Prices survey</a> (QEP) for Britain and <a href="https://ec.europa.eu/eurostat/databrowser/view/nrg_pc_205/default/table" target="_blank" rel="noopener">Eurostat’s industrial bands</a> for Germany. China runs no equivalent survey, so its line is built from documented tariffs — provincial catalogue schedules to October 2021, then grid companies’ monthly agency-purchase notices and the <a href="https://www.ndrc.gov.cn/xxgk/zcfb/tz/202305/t20230515_1355747.html" target="_blank" rel="noopener">provincial transmission &amp; distribution (T&amp;D) price schedules</a> of China’s National Development and Reform Commission (NDRC), weighted by provincial consumption. It is a tariff construct rather than a survey, and from 2022 its medium band rests on Jiangsu alone.</p>
-  <p>Plotting observed prices, we note that indeed, industrial electricity prices in the UK have risen meaningfully since 2020, both for medium and large-scale industry. Those in Germany have stayed roughly flat. However, we can see that Chinese industrials have benefited from declining prices, and that trend has been running for as long as the time series exists.</p>
+  <h2><span class="secno">2</span>What industry actually pays</h2>
+  <p>To begin, we will look at the records of historical prices paid by industry. I call them ‘observed’ prices. The data can be found in DESNZ’s <a href="https://www.gov.uk/government/statistical-data-sets/gas-and-electricity-prices-in-the-non-domestic-sector" target="_blank" rel="noopener">Quarterly Energy Prices survey</a> (QEP) for Britain and <a href="https://ec.europa.eu/eurostat/databrowser/view/nrg_pc_205/default/table" target="_blank" rel="noopener">Eurostat’s industrial bands</a> for Germany. China runs no equivalent survey, so its line is built from documented tariffs — provincial catalogue schedules to October 2021, then grid companies’ monthly agency-purchase notices and the <a href="https://www.ndrc.gov.cn/xxgk/zcfb/tz/202305/t20230515_1355747.html" target="_blank" rel="noopener">provincial transmission &amp; distribution (T&amp;D) price schedules</a> of China’s National Development and Reform Commission (NDRC), weighted by provincial consumption. From 2022 its medium band rests on data from Jiangsu province alone, which is a necessary proxy.</p>
+  <p>Plotting observed prices, we note that indeed, industrial electricity prices in the UK have risen meaningfully since 2020, both for medium and large-scale industry. Those in Germany have stayed roughly flat. However, we can see that Chinese industrials have benefited from declining prices, and that trend has been running for as long as the time series exists. <b>Latest annual data reveals that German industrials pay ~2x the price in China, and those in the UK nearly x3.</b></p>
 
   <figure class="viz" id="fig1"></figure>
 
-  <p><b>Thus we have established that there is indeed an observable divergence in industrial electricity rates.</b> The question then becomes whether it moved in tandem with ‘deindustrialisation’.</p>
+  <p><b>Therefore, there is indeed an observable and meaningful divergence in industrial electricity rates.</b> The question then becomes whether it moved in tandem with ‘deindustrialisation’.</p>
   <p>Plotting total manufacturing output reveals that despite rising electricity prices, British manufacturing has grown by a fifth since 2010. Counterintuitively, in Germany, where electricity rates stayed roughly flat, output rose until 2018 but has since fallen back, leaving the manufacturing index where it started. In comparison, Chinese industrial output has grown by 174%.</p>
-  <p>In energy-intensive industries — steel, paper, cement, aluminium — output more closely matches the trends seen in electricity prices. British output has halved since 2010; German output has declined by 19%, while Chinese output has grown by 67%. There is a caveat in that on a wider definition which includes chemicals and refining, UK output would not be down at all; instead, it would be up 20% between 2010 and 2024, against Germany’s 17% decline. I purposefully excluded chemicals given that most of their energy use comes in the form of feedstock.</p>
+  <p>Taking a narrower definition of energy-intensive industries (EII) — steel, paper, cement, aluminium — output more closely matches the trends seen in electricity prices. British output has halved since 2010; German output has declined by 19%, while Chinese output has grown by 67%. There is a caveat in that on a wider definition which includes chemicals and refining, UK output would not be down at all; instead, it would be up 20% between 2010 and 2024, against Germany’s 17% decline. However I purposefully excluded chemicals given that most of their energy use comes in the form of feedstock.</p>
 
   <figure class="viz" id="fig2"></figure>
 
-  <p>While broader manufacturing activity has not declined since 2010 in Germany or Britain, it has failed to keep the pace of growth set by China. What’s worse, energy-intensive industries have meaningfully declined. On this basis, it would be fair to infer that higher industrial prices have cost European businesses competitiveness. The question is whether something can be done about it. In the next section, I will examine the anatomy of the industrial bill.</p>
+  <p>While broader manufacturing activity has not declined since 2010 in Germany or Britain, it has clearly failed to keep the pace of growth set by China. What’s worse, energy-intensive industries have meaningfully declined. On this basis, it would be fair to infer that higher industrial prices have cost European businesses competitiveness. The question is whether something can be done about it. In the next section, I will examine the anatomy of the industrial bill.</p>
 
-  <h2><span class="secno">3</span>Anatomy of a bill</h2>
+  <h2><span class="secno">3</span>Anatomy of an electricity bill</h2>
   <p>To explain the divergence we decompose each bill into components defined identically across the three countries:</p>
   <div class="defs">
-    <p><b>Wholesale.</b> The energy itself, bought at market prices — set by gas plant in Britain and Germany, largely by coal contracts in China.</p>
-    <p><b>Network, system &amp; balancing.</b> Transmission and distribution use-of-system charges (TNUoS and DUoS in Britain; Netzentgelte; 输配电价) plus system operation and balancing (BSUoS in Britain).</p>
-    <p><b>Levies &amp; taxes, incl. generation-capital recovery.</b> Policy costs recovered through bills — Britain’s Renewables Obligation, Contracts for Difference and feed-in tariffs (RO, CfD, FiT); Germany’s EEG, combined-heat-and-power and offshore levies; China’s government funds and surcharges — plus electricity taxes.</p>
-    <p style="margin-bottom:0"><b>Supplier retail costs &amp; margin.</b> In no published tariff schedule, so we measure it — <a href="https://www.ofgem.gov.uk/transparency-document/energy-companies-consolidated-segmental-statements-css" target="_blank" rel="noopener">Ofgem’s Consolidated Segmental Statements</a> for Britain, BNetzA’s &ldquo;Vertrieb und Marge&rdquo; for Germany: <b>$20.0/MWh</b> there against <b>$17.5</b> here in 2024, which settles it as a non-differentiator. China publishes nothing equivalent, so the block stays inside the gap to the observed line.</p>
+    <p><b>Wholesale.</b> The energy itself, bought at day-ahead or year-ahead market prices.&nbsp;</p>
+    <p><b>Network, system &amp; balancing.</b> Transmission and distribution use-of-system charges (TNUoS and DUoS in Britain; Netzentgelte; 输配电价) plus system operation and balancing (BSUoS).</p>
+    <p><b>Levies &amp; taxes, incl. generation-capital recovery.</b>&nbsp;These are policy costs, i.e. often subsidies, recovered through bills. In Britain it's the Renewables Obligation, Contracts for Difference and feed-in tariffs (RO, CfD, FiT); in Germany the EEG, combined-heat-and-power and offshore levies; in China, government funds and surcharges. This bracket also includes any non-levy electricity tax.</p>
+    <p style="margin-bottom:0"><b>Supplier retail costs &amp; margin.</b>&nbsp;These are not usually published in tariff schedules, so I have estimated them using <a href="https://www.ofgem.gov.uk/transparency-document/energy-companies-consolidated-segmental-statements-css" target="_blank" rel="noopener">Ofgem’s Consolidated Segmental Statements</a> for Britain, BNetzA’s “Vertrieb und Marge” for Germany.&nbsp;I could not find reliable data for China, so this is a known limitation.</p>
   </div>
-  <p>Two features of the pre-exemption stack drive everything that follows. The first is the British levy wedge: policy costs went from about $20/MWh in 2010 to <b>$71 in 2025, against $36 in Germany</b>, almost all of it generation-capital recovery — paying for plant already built. That growth is mechanical, not discretionary: the Renewables Obligation closed to new capacity in 2017, but its generators only come off the scheme between 2027 and 2037, on a buy-out price uprated with inflation each year — an entitlement already granted, not an annual decision. Contracts for Difference top generators up to a fixed strike, so the levy line rises precisely when the wholesale line falls. Germany’s stack shrank for a reason with no British analogue — in mid-2022 it moved the EEG levy off bills and onto the federal budget.</p>
-  <p>The second is that British and German wholesale costs are close — about $100–106/MWh in 2025 — while China’s sits near $60. That is a difference in what sets the marginal price, and section 6 takes it apart.</p>
-  <p>One boundary holds throughout: this is an accounting of what appears on the bill, not of the full economic cost of policy. Germany’s EEG transfer moved cost to taxpayers; Britain’s exemptions are recovered from every other consumer; China’s regulated tariffs embed cross-subsidies that never appear as line items. A cheaper bill is not always cheaper policy.</p>
+  <p>Before I share the plot of the components, I want to caveat that the data presented is a&nbsp;<i>model</i>. The wholesale prices, as well as the network charges and supplier margin, are based on the archetypes I imagined. However, the archetypes are a theoretical best-practice idealised version of a business. Therefore, the modelled rates are likely to be on the <i>optimistic</i> side — they do not take into account emergency constraints or real-life considerations such as hedging. This limitation is a serious one as I discuss later.</p>
+  <p>For now, plotting the components reveals five observations:</p>
+  <p>First, and most notable is the extent to which policy costs increase electricity bills; up until covid, nearly half of British electricity bill went to funding subsidies; in Germany it was closer to two-thirds. I could not find disaggregated data for China prior to 2021, but data from Jiangsu province from 2022 hints that subsidies were largely funded through general taxation rather than the electricity bill — the surcharges that do appear on it are a few dollars per MWh.</p>
+  <p>The second finding is related to the first; German policy costs dropped sharply in 2022. In that year, Germany moved the cost of its EEG subsidy from the electricity bill to the general taxpayer. This is a key lever to reducing electricity bills, but it is not a free lunch and someone has to pay in the end.</p>
+  <p>The third finding is that British and German wholesale costs tend to move in tandem, while Chinese diverge. The likely reason is that in British and German power markets gas generation is the marginal price setter, but more on that in Section 6.</p>
+  <p>The fourth finding reveals that network charges are broadly similar in scale across the UK, Germany and China, suggesting that they contribute the least to the competitiveness gap.</p>
+  <p>The final finding is that in Germany, the observed price appears to be lower than the sum of its components. Which brings us to the topic of <i>industrial exemptions</i>.</p>
 
   <figure class="viz" id="fig3"></figure>
 
-  <h2><span class="secno">4</span>What relief removes — and where it leaves Britain</h2>
-  <p>Neither Britain nor Germany charges its heaviest industry that full stack. Britain exempts eligible energy-intensive industries (EIIs) from the renewables levies — 85% from 2018, <a href="https://www.legislation.gov.uk/uksi/2024/409" target="_blank" rel="noopener">100% since April 2024</a> — excludes them from the Capacity Market charge, and compensates network charges at 60%, rising to <a href="https://www.legislation.gov.uk/uksi/2026/243" target="_blank" rel="noopener">90% from April 2026</a>. Separately, and missed by most commentary, energy used in <a href="https://www.gov.uk/government/publications/excise-notice-ccl13-climate-change-levy-reliefs-and-special-treatments-for-taxable-commodities/excise-notice-ccl13-climate-change-levy-reliefs-and-special-treatments-for-taxable-commodities" target="_blank" rel="noopener">mineralogical and metallurgical processes</a> has been outside the Climate Change Levy since 2014 — cement, lime, glass, ceramics, steel and aluminium. Firms outside those processes hold a Climate Change Agreement instead, which discounts the levy by 92% rather than removing it, so the zero-levy stacks below are a floor for a paper mill. Germany capped the EEG levy (BesAR) until it moved to the budget, and still floors baseload users’ network charges at 10% of the published tariff under §19 of its grid-fee ordinance (StromNEV). China has no relief layer at all.</p>
-  <p>The two regimes ask different questions, and the difference decides who benefits.</p>
+  <h2><span class="secno">4</span>What relief removes</h2>
+  <p>Neither Britain nor Germany charges its heaviest industry that full stack. For instance, Britain exempts eligible EIIs from the renewables levies — 85% from 2018, <a href="https://www.legislation.gov.uk/uksi/2024/409" target="_blank" rel="noopener">100% since April 2024</a> — excludes them from the Capacity Market charge, and compensates network charges at 60%, rising to <a href="https://www.legislation.gov.uk/uksi/2026/243" target="_blank" rel="noopener">90% from April 2026</a>. Germany also exempts its industrial users from some levies and network charges. The exemptions are summarised in the table below.</p>
+  <p>There are some notable differences in how the two countries approach electricity price relief. The British scheme focuses on the share of electricity costs in a firm’s gross value added, while the German approach favours large and round-the-clock energy consumption.</p>
 
   <div class="archrow sans">
     <div class="arch">
-      <div class="ah">Two relief regimes, two different questions</div>
+      <div class="ah">Industrial electricity rate exemptions in the UK and Germany</div>
       <table class="cmp">
         <thead><tr><th scope="col"></th><th scope="col"><i style="background:var(--uk)"></i>United Kingdom</th><th scope="col"><i style="background:var(--de)"></i>Germany</th></tr></thead>
         <tbody>
@@ -228,14 +232,12 @@
           <tr><th scope="row">Renewables levies</th><td data-c="UK">100% exemption from RO, CfD and FiT — 85% from 2018, <b>100% from April 2024</b>.</td><td data-c="Germany">The EEG-Umlage cap (BesAR) until mid-2022, when the levy moved to the federal budget for everyone.</td></tr>
           <tr><th scope="row">Network charges</th><td data-c="UK">Network Charging Compensation on 60% of them, <b>rising to 90% from April 2026</b> (from 2025, backdated to April 2024).</td><td data-c="Germany">§19(2) StromNEV cuts the charge to at most 20% of the published tariff — 15% at 7,500 h, 10% at 8,000 h.</td></tr>
           <tr><th scope="row">Capacity charge</th><td data-c="UK">Excluded from Capacity Market charges since October 2024.</td><td data-c="Germany">No equivalent charge to be excused from.</td></tr>
-          <tr><th scope="row">Electricity tax</th><td data-c="UK">The certificate does not touch the Climate Change Levy — but the <b>mineralogical and metallurgical exemption</b> above removes it separately and automatically for the heaviest processes.</td><td data-c="Germany">Producing industry pays a reduced Stromsteuer (§9b), cut to near-zero from 2024.</td></tr>
+          <tr><th scope="row">Electricity tax</th><td data-c="UK">The certificate does not touch the Climate Change Levy — but a separate <b>mineralogical and metallurgical exemption</b> removes it automatically for the heaviest processes (steel, aluminium, cement, glass, lime, ceramics). Firms outside those processes hold a Climate Change Agreement instead, which discounts the levy by 92% rather than removing it — so the zero-levy relieved stacks below are a floor for e.g. a paper mill.</td><td data-c="Germany">Producing industry pays a reduced Stromsteuer (§9b), cut to near-zero from 2024.</td></tr>
         </tbody>
       </table>
     </div>
   </div>
-
-  <p>Britain tests how much electricity <em>hurts</em> a firm; Germany tests what the firm <em>is</em> and how it runs. The British certificate is blind to load shape; the German network floor is not — which is why a two-shift 20 GWh site clears the British test, fails the German one, and why the ranking inverts at medium size.</p>
-  <p>For a fully qualifying site the levies-and-grid story has largely been legislated away already. UK levies fall from $71/MWh to nothing at all, and pure network charges converge with Germany’s — <b>$5.5/MWh against $7.9</b> in 2025.</p>
+  <p>Applying the full force of exemptions to our modelled price reveals the extent to which power prices can be lowered via policy. In 2025, a fully relieved British site should pay only about 25% (medium) to 55% (large) more than its Chinese peer — against the roughly 200% (medium) to 225% (large) premium the observed averages show for unrelieved industry.</p>
 
   <figure class="viz" id="fig4"></figure>
 
@@ -696,6 +698,7 @@ function stackPanels(mount, opts){
       let t=0; p.segs.forEach(s=>{ if(s.values[i]!=null) t+=s.values[i]; });
       ymax = Math.max(ymax, t);
       if(p.obs && p.obs.values[i]!=null) ymax = Math.max(ymax, p.obs.values[i]);
+      if(p.obs2 && p.obs2.values[i]!=null) ymax = Math.max(ymax, p.obs2.values[i]);
     });
   });
   ymax = opts.ymaxOverride || niceMax(ymax*1.04);
@@ -742,6 +745,18 @@ function stackPanels(mount, opts){
         acc += v;
       });
     });
+    // dashed overlay line (e.g. the unrelieved total behind a relieved stack)
+    if(p.obs2){
+      let d2="", started2=false;
+      opts.years.forEach((y,i)=>{
+        const v=p.obs2.values[i];
+        if(v==null){started2=false;return;}
+        d2+=(started2?"L":"M")+X(i)+" "+Y(v)+" "; started2=true;
+      });
+      const l2 = svgel("path",{d:d2,fill:"none","stroke-width":1.8,"stroke-linejoin":"round","stroke-dasharray":"5 4"},svg);
+      l2.style.stroke = "var(--obs)";
+      l2.style.opacity = .75;
+    }
     // obs line
     if(p.obs){
       let d="", started=false;
@@ -765,6 +780,7 @@ function stackPanels(mount, opts){
       hl.setAttribute("x", M.l+i*slot); hl.setAttribute("opacity",0.05);
       const rows = [];
       if(p.obs && p.obs.values[i]!=null) rows.push({label:p.obs.label, color:getComputedStyle(svg).getPropertyValue("--obs")||"#000", value:p.obs.values[i]});
+      if(p.obs2 && p.obs2.values[i]!=null) rows.push({label:p.obs2.label, color:"var(--muted)", value:p.obs2.values[i]});
       let tot=0;
       [...p.segs].reverse().forEach(s=>{
         if(s.values[i]==null) return;
@@ -925,12 +941,19 @@ function bucketPanels(figId, useCase, title, sub, capNote){
         segs.push({label:"Supplier retail costs + margin (CSS; 2010–11 & 2025 imputed)", color:segCols.m, values:maskToStack(DATA.cssWedge.measuredFilled)});
       if(c==="DE")
         segs.push({label:"Supplier retail costs + margin (BNetzA \u201cVertrieb und Marge\u201d, 2025, held constant)", color:segCols.m, values:maskToStack(DATA.deWedge.measuredFilled)});
-      return {
+      const out = {
         title: c==="UK" ? "United Kingdom" : "Germany",
         unit: "$/MWh (real 2025)",
         segs,
         obs: {label:"Observed price", values:DATA.prices[arch][c].obs}
       };
+      if(useCase==="E2"){
+        const E1 = DATA.buckets[`${c}.${arch}.E1`];
+        const wedge = c==="UK" ? DATA.cssWedge.measuredFilled : DATA.deWedge.measuredFilled;
+        out.obs2 = {label:"Unrelieved total (incl. supplier)",
+          values: E1.total.map((v,i)=> v==null ? null : v + wedge[i])};
+      }
+      return out;
     }
     const CB = DATA.buckets[`CN.${arch==="large"?"large":"medium"}`];
     const cn = {
@@ -953,6 +976,7 @@ function bucketPanels(figId, useCase, title, sub, capNote){
     ];
     legendItems.push({label:"Supplier retail costs + margin", color:segCols.m});
     legendItems.push({label:"CN bundled tariff pre-2022", color:segCols.x});
+    if(useCase==="E2") legendItems.push({label:"Unrelieved total (dashed)", color:cvar("--obs"), line:true});
     legendItems.push({label:"Observed price", color:cvar("--obs"), line:true});
     F.legend(legendItems);
     ["UK","DE"].forEach(c=>{
@@ -967,6 +991,11 @@ function bucketPanels(figId, useCase, title, sub, capNote){
       if(c==="DE"){ cols.push({label:"DE supplier costs+margin (BNetzA 2025, held constant in real terms)", values:mask(DATA.deWedge.measuredFilled)});
                       cols.push({label:"DE margin only, cross-check (E.ON DE retail EBITDA/MWh)", values:DATA.deWedge.eonMarginOnly}); }
       cols.push({label:c+" total (excl. margin)", values:B.total});
+      if(useCase==="E2"){
+        const E1T = DATA.buckets[`${c}.${arch}.E1`];
+        const wg = c==="UK" ? DATA.cssWedge.measuredFilled : DATA.deWedge.measuredFilled;
+        cols.push({label:c+" unrelieved total (incl. supplier)", values:E1T.total.map((v,i)=> v==null ? null : v + wg[i])});
+      }
       cols.push({label:c+" observed", values:DATA.prices[arch][c].obs});
       tableView(F.fig, DATA.years, cols, "View data — " + (c==="UK"?"United Kingdom":"Germany") + " (real 2025 USD/MWh)");
     });
@@ -1624,7 +1653,7 @@ bucketPanels("fig3","E1",
   'UK includes CSS-measured supplier retail costs + margin (2012\u201324 measured; 2010\u201311 & 2025 imputed); Germany includes the equivalent segment from BNetzA (2025 measured, held constant). China\'s catalogue tariff cannot be split into components before the 2022 reform and is shown bundled (grey). <b>The two supplier segments are not measured the same way.</b> The UK figure is the volume-weighted non-domestic average from <a href="https://www.ofgem.gov.uk/transparency-document/energy-companies-consolidated-segmental-statements-css" target="_blank" rel="noopener">Ofgem CSS</a> filings, measured 2012&ndash;24 with 2010&ndash;11 and 2025 imputed at the period average ($14.3/MWh). The German figure is BNetzA&rsquo;s &ldquo;Vertrieb und Marge&rdquo; for a 24 GWh customer &mdash; $20.0/MWh at 1 April 2025, the mean of 127 suppliers, held flat across the span (first published year): read the level, not the shape. That case is close to a direct read on the medium archetype and a ceiling on the large one. On this like-for-like footing supplier costs and margin are <b>not</b> a UK&ndash;Germany differentiator.');bucketPanels("fig4","E2",
   "The bill decomposed — with full exemptions",
   "The same decomposition for a site holding full EII/BesAR-era relief status ('with exemptions')",
-  'China repeats the previous chart: no relief tier exists. UK relief: 85% renewables-levy exemption from 2018, 100% from Apr 2024, network compensation from 2025. Germany: EEG cap to 2022, &sect;19 StromNEV network floor. Both panels keep the supplier segment of the previous chart &mdash; an exempt firm still buys through a supplier. The remaining gap to the observed line is mostly band mix &mdash; and no longer a guess: measured through suppliers&rsquo; <a href="https://www.ofgem.gov.uk/sites/default/files/2026-03/RO_24-25_SY23_Annual_Report-20260327121336.pdf" target="_blank" rel="noopener">Renewables Obligation returns</a>, exempted volume was 14.5% of industrial electricity consumption in 2024&ndash;25, so the QEP average is roughly 85% weighted to firms that do not hold the exemptions this stack assumes.');
+  'The dashed line is the unrelieved total \u2014 the previous chart\'s components summed for the same site; the gap down to the bars is what relief removes. China repeats the previous chart: no relief tier exists, so no dashed line is drawn. UK relief: 85% renewables-levy exemption from 2018, 100% from Apr 2024, network compensation from 2025. Germany: EEG cap to 2022, &sect;19 StromNEV network floor. Both panels keep the supplier segment of the previous chart &mdash; an exempt firm still buys through a supplier. The remaining gap to the observed line is mostly band mix &mdash; and no longer a guess: measured through suppliers&rsquo; <a href="https://www.ofgem.gov.uk/sites/default/files/2026-03/RO_24-25_SY23_Annual_Report-20260327121336.pdf" target="_blank" rel="noopener">Renewables Obligation returns</a>, exempted volume was 14.5% of industrial electricity consumption in 2024&ndash;25, so the QEP average is roughly 85% weighted to firms that do not hold the exemptions this stack assumes.');
 renderFig5(); renderFig6(); renderFig7(); renderFig8(); renderFig9(); renderFig14(); renderFig10(); renderLadder(); renderFig12(); renderFig15(); renderFig16();
 labelCharts();
 }
