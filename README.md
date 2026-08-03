@@ -4,7 +4,7 @@
 
 📄 **Read the study:** *(link goes here once GitHub Pages is switched on)*
 
-> **Status: draft for review.** Figures may change. The register stamp in the article footer (`@ D72/Q103/S220`) identifies exactly which version of the underlying workbook the published numbers come from.
+> **Status: draft for review.** Figures may change. The register stamp in the article footer (`@ D73/Q105/S224`) identifies exactly which version of the underlying workbook the published numbers come from.
 
 ---
 
@@ -36,11 +36,11 @@ The study also tests, and declines to support, several popular remedies — incl
 
 Every figure in the article resolves to a cell in the workbook, and every input resolves to a registered source. Three sheets carry that trail:
 
-**`decisions`** — every methodological choice, numbered `D1`…`D72`, each with the reasoning and the date it was signed off. Where a choice could have gone another way, the alternative is recorded.
+**`decisions`** — every methodological choice, numbered `D1`…`D73`, each with the reasoning and the date it was signed off. Where a choice could have gone another way, the alternative is recorded.
 
-**`qc`** — every quality-control finding, numbered `Q1`…`Q104`, including the ones that are still open and the ones that turned out to be my own errors. Findings are not removed once resolved.
+**`qc`** — every quality-control finding, numbered `Q1`…`Q105`, including the ones that are still open and the ones that turned out to be my own errors. Findings are not removed once resolved.
 
-**`sources`** — every primary source, numbered `S1`…`S220`, with the URL and the retrieval date.
+**`sources`** — every primary source, numbered `S1`…`S224`, with the URL and the retrieval date.
 
 Charts in the article have a **"View data"** control beneath them that opens the underlying series as a table, so no figure has to be read off an axis.
 
