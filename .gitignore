@@ -50,3 +50,19 @@ paying_for_power_article_v1_backup.html
 # its sources are assets/opener.png and assets/opener_web.jpg)
 assets/opener_placeholder.png
 assets/opener_placeholder_web.jpg
+
+# Full model workbook and its internal extracts (decision log, QC register, regression
+# tests, staging sheets) stay on disk; the published audit layer is
+# paying_for_power_chart_data.xlsx plus data/*.csv exported from it.
+industrial_electricity_master.xlsx
+data/assumptions.csv
+data/decisions.csv
+data/golden_numbers.csv
+data/qc.csv
+data/sources.csv
+data/stage6_decomp.csv
+data/stage7_network.csv
+data/timeseries.csv
+
+# Numbered working copies of the article
+paying_for_power_article_v*.html

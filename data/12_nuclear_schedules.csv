@@ -1,0 +1,23 @@
+﻿Schedule record of the newest nuclear builds,,,,,,,
+Years from first structural concrete to commercial operation,,,,,,,
+"Planned = schedule stated at or nearest construction start; actual = first concrete to commercial operation. Some baselines refer to start-up rather than commercial operation (months, not years). † Barakah: last three years operator licensing. ‡ Flamanville measured to grid connection (December 2024). Hinkley C projected to 2030 start-up. Fuqing, Karachi and Taipingling baselines are the weakest-dated; Taipingling 2 (grid July 2026) joins at commercial operation. Sources. IAEA PRIS (actual durations). Baselines: TVO 2003 contract (Olkiluoto); EDF 2007 (Flamanville); Georgia PSC (Vogtle); EDF 2016 and February 2026 guidance (Hinkley C); WNA/WNN statements for the rest, incl. San’ao.",,,,,,,
+,,,,,,,
+Reactor,Country,Design,Construction start,Planned (yr),Actual (yr),Slip,Note
+San'ao 1,China,Hualong One,2020,5.4,5.33,on plan,
+Fuqing 5,China,Hualong One,2015,4.6,5.7,1.1,
+Karachi K-2,Pakistan,Hualong One,2015,6,5.75,on plan,
+Taipingling 1,China,Hualong One,2019,5.5,6.31,0.8,
+Fangchenggang 3,China,Hualong One,2015,4,7.25,3.3,
+Belarusian 1,Belarus,VVER-1200,2013,5,7.6,2.6,
+Barakah 1,UAE,APR1400,2012,5,8.7,3.7,last three years operator licensing
+Taishan 1,China,EPR,2009,4,9.1,5.1,
+Taishan 2,China,EPR,2010,5.2,9.4,4.2,
+Sanmen 1,China,AP1000,2009,4.3,9.4,5.1,
+Leningrad II-1,Russia,VVER-1200,2008,5,10,5,
+Shin Hanul 1,South Korea,APR1400,2012,4.7,10.4,5.7,
+Vogtle 3,United States,AP1000,2013,3.1,10.4,7.3,
+Vogtle 4,United States,AP1000,2013,3.4,10.4,7,
+Hinkley Point C 1,United Kingdom,EPR,2018,7,11,"+4, building",under construction; projected
+Kakrapar 3,India,PHWR-700,2010,5,12.6,7.6,
+Flamanville 3,France,EPR,2007,4.5,17,12.5,measured to grid connection
+Olkiluoto 3,Finland,EPR,2005,3.9,17.7,13.8,

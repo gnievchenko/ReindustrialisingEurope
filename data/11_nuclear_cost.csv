@@ -1,0 +1,24 @@
+﻿"Nuclear cost, three tiers: keep it, model it, build it",,,
+"Real 2025 USD/MWh unless stated (annual-average market FX, Fed H.10; deflated with US CPI-U). Excludes VAT.",,,
+"Grey band = 2025 short-run marginal cost of existing gas plant in the UK and Germany (fuel plus carbon, 46–55% efficiency; as in section 8). Benchmark tier at a harmonised 7% real cost of capital. Barakah = own calculation on the same basis as Vogtle (7%, 60 years, 90% capacity factor, NEA operating and fuel cost), on a capital cost of $24.4bn (2016 financing close) to $32bn (later reported total). China: $85 here (NEA at 7%, 2018 data restated) is the top of the $72–85 range in section 8, whose low end is the IEA estimate on recent cost data and IEA financing assumptions. LWR/ALWR = (advanced) light-water reactor; VVER = Russian pressurised-water design. Sources. OECD/NEA Projected Costs 2020 (benchmarks, life extension); NAO 2026 (Hinkley C contracted price); own calculation from Georgia Power and MEAG disclosures (Vogtle, 7%, 60 years); Cour des comptes 2025 (Flamanville, 7%, 85% capacity factor); ENEC 2016 and IAEA PRIS (Barakah); Radiant Energy Group 2026 (German restart, advocacy-adjacent).",,,
+,,,
+Tier,Project / benchmark,Low,High (or point estimate)
+Keeping or reviving existing reactors,Life extension (OECD/NEA benchmark),28.6,41.1
+Keeping or reviving existing reactors,Germany - fleet restart,41.8,80.3
+New build - modelled at a common 7% cost of capital (OECD/NEA 2020),Russia (VVER),,53.9
+New build - modelled at a common 7% cost of capital (OECD/NEA 2020),South Korea (ALWR),,68.3
+New build - modelled at a common 7% cost of capital (OECD/NEA 2020),China (LWR),,84.6
+New build - modelled at a common 7% cost of capital (OECD/NEA 2020),India (LWR),,84.7
+New build - modelled at a common 7% cost of capital (OECD/NEA 2020),France (EPR),,91.2
+New build - modelled at a common 7% cost of capital (OECD/NEA 2020),United States (LWR),,91.4
+New build - modelled at a common 7% cost of capital (OECD/NEA 2020),Japan (ALWR),,111.1
+New build - modelled at a common 7% cost of capital (OECD/NEA 2020),Slovakia,,130.6
+New build - out-turns and contracted prices,UAE - Barakah 1–4 out-turn proxy,82.1,94.1
+New build - out-turns and contracted prices,UK - Hinkley C contracted price,,170.1
+New build - out-turns and contracted prices,US - Vogtle 3&4 out-turn proxy,,175.9
+New build - out-turns and contracted prices,France - Flamanville 3 requirement,,201.2
+,,,
+Grey band,,,
+"Gas SRMC 2025 (46–55% efficiency, carbon incl.)",Low,High,
+United Kingdom (NBP),101.6,121.5,
+Germany (TTF),101.8,121.8,

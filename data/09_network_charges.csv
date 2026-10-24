@@ -1,0 +1,22 @@
+﻿Modelled network and balancing charges,,,,
+"Real 2025 USD/MWh unless stated (annual-average market FX, Fed H.10; deflated with US CPI-U). Excludes VAT.",,,,
+"UK: TNUoS, DUoS, BSUoS and the hydro-benefit levy. DE: Netzentgelte plus §19, offshore and interruptible-load surcharges. DE 2024 rise: federal transmission subsidy withdrawn after the Karlsruhe budget ruling; €6.5bn subsidy returns for 2026. Sources. NESO and Northern Powergrid charging statements; joint ÜNB price sheets (2024) and Westnetz.",,,,
+,,,,
+"Modelled network and balancing charges, without relief",,,,
+Year,Large — United Kingdom,Large — Germany,Medium — United Kingdom,Medium — Germany
+2010,7.916,7.494,28.753,29.956
+2011,9.45,8.128,30.751,29.11
+2012,10.194,9.33,31.416,31.105
+2013,11.312,9.818,32.832,34.6
+2014,13.485,9.505,37.133,36.648
+2015,14.384,9.392,37.714,32.271
+2016,14.782,10.189,37.701,34.747
+2017,14.189,12.105,36.328,35.598
+2018,15.161,17.929,44.266,38.513
+2019,15.981,14.426,46.825,33.678
+2020,17.925,16.597,45.947,36.732
+2021,21.922,16.67,52.217,40.621
+2022,22.044,16.202,40.049,36.481
+2023,29.834,16.993,37.118,39.825
+2024,24.99,35.073,36.59,53.889
+2025,30.297,33.689,36.722,53.658

@@ -1,0 +1,41 @@
+﻿The identity test: day-ahead power vs the marginal cost of gas-fired generation,,,,
+"Real 2025 USD/MWh unless stated (annual-average market FX, Fed H.10; deflated with US CPI-U). Excludes VAT.",,,,
+"Real 2025 USD/MWh, converted at annual-average market FX and deflated with US CPI-U. SRMC = (hub gas, HHV + carbon × 0.183 tCO2/MWhth) ÷ efficiency; corridor 46–55%, line 50%. Annual averages, not hourly dispatch. Sources. Gas: Ofgem (2014–16), ONS SAP (2018–25), BNetzA (THE), European Commission and ACER (TTF); UK 2010–13, 2017 and TTF 2010–20 from the EI Statistical Review. Carbon: EUA/UKA auctions plus £18 Carbon Price Support, checked against ICAP. Emission factor: DESNZ 2025.",,,,
+,,,,
+United Kingdom (real 2025 USD/MWh),,,,
+Year,Day-ahead power,Gas SRMC @50%,SRMC corridor low (55% eff.),SRMC corridor high (46% eff.)
+2010,102.6,,,
+2011,110.7,,,
+2012,100.5,,,
+2013,109.8,106.8,97.1,116.1
+2014,95.1,88.2,80.2,95.9
+2015,84.6,78.1,71,84.9
+2016,77.5,58.3,53,63.3
+2017,78.4,66.2,60.2,71.9
+2018,99.8,90.8,82.5,98.6
+2019,70.3,61.8,56.2,67.2
+2020,59,50.6,46,55
+2021,208.5,169,153.6,183.7
+2022,288.3,240.2,218.3,261
+2023,127.9,124.7,113.4,135.6
+2024,99.3,101.7,92.4,110.5
+2025,110.7,111.8,101.6,121.5
+,,,,
+Germany (real 2025 USD/MWh),,,,
+Year,Day-ahead power,Gas SRMC @50%,SRMC corridor low (55% eff.),SRMC corridor high (46% eff.)
+2010,87.1,,,
+2011,101.9,,,
+2012,76.8,94.4,85.9,102.7
+2013,69.3,102,92.7,110.9
+2014,59.2,79.1,71.9,86
+2015,47.7,63.9,58.1,69.4
+2016,43,44.4,40.4,48.3
+2017,50.7,54.2,49.3,58.9
+2018,67.4,77.3,70.3,84.1
+2019,53.1,51.1,46.4,55.5
+2020,43.2,39.5,35.9,42.9
+2021,136.1,159.7,145.1,173.6
+2022,272.8,323.8,294.4,352
+2023,108.8,128.7,117,139.9
+2024,87.2,103.3,93.9,112.2
+2025,101,112,101.8,121.8

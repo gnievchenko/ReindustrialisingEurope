@@ -1,0 +1,79 @@
+﻿"Industrial output by country, 2010–2025",,,
+"Index, 2010 = 100",,,
+"Top left. Manufacturing, NACE section C. CN = NBS value added for firms above the revenue threshold, 2011–12 bridged via UNIDO; published corrections put its 2025 value at 233–296. Top right. NACE divisions 17, 19, 20, 23, 24 (paper, refining, chemicals, non-metallic minerals, basic metals). DE = Destatis Energieintensive Industriezweige; UK constructed to the same definition from ONS division indices (band = three weighting variants); CN = chemicals, minerals, ferrous and non-ferrous on 2007 value-added weights, excluding paper and refining (band = revenue weights). Bottom left. The same without chemicals and refining: divisions 17, 23, 24. UK chained on ONS weights (band = three weighting variants); DE = Eurostat division indices on Destatis production-index weights; CN = non-metallic minerals, ferrous and non-ferrous metals (band = revenue weights). Bottom right. Production tonnage of crude steel, primary aluminium, cement and paper & paperboard, each indexed to 2010 and combined on one set of weights for all three countries: EU27 value added for the matching NACE classes in 2010 (steel 44%, paper 28%, aluminium 15%, cement 13%). Band = three weightings: the same weights as an arithmetic and as a geometric mean, plus a set that trims aluminium to the primary-only share of its class. Sources. ONS, Destatis, Eurostat sts_inpr_a, Destatis weights, NBS, UNIDO; bottom right: steel from worldsteel; aluminium and cement from BGS World Mineral Production and USGS Minerals Yearbook; paper from FAOSTAT; China from the NBS Statistical Yearbook; weights from Eurostat structural business statistics.",,,
+,,,
+"manufacturing output (index, 2010 = 100)",,,
+Year,"UK — manufacturing, NACE section C (context)","Germany — manufacturing, NACE section C (context)","China — manufacturing, above designated size (context)"
+2010,100,100,100
+2011,98,108.5,114.9
+2012,100.9,107.3,127.6
+2013,105.1,107.2,141
+2014,108.3,109.3,154.3
+2015,110.7,110.5,165.1
+2016,109.6,111.7,176.3
+2017,111.4,114.7,189
+2018,116.8,116,201.3
+2019,118.3,112.3,213.4
+2020,117.3,102.4,220.7
+2021,123.5,107.3,242.3
+2022,120.3,107.1,249.5
+2023,122.5,105.8,262
+2024,122.9,100.6,278
+2025,121.8,99.6,295.8
+,,,
+"energy-intensive industries (index, 2010 = 100)",,,
+Year,"United Kingdom — divisions 17, 19, 20, 23, 24","Germany — divisions 17, 19, 20, 23, 24","China — divisions 17, 19, 20, 23, 24"
+2010,100,100,100
+2011,82.8,102.8,113.5
+2012,97.8,99.8,126.1
+2013,101.5,99.5,140.8
+2014,115.9,99.7,153.7
+2015,140.3,99.9,165.9
+2016,133.2,100.1,172.9
+2017,130.2,101.6,176.9
+2018,135.2,100.6,186.8
+2019,142.1,97.2,201.6
+2020,146.6,93.3,209.9
+2021,143.9,99,220.4
+2022,130.2,93.3,227.2
+2023,125.1,82.6,242.5
+2024,122.1,83.1,256.5
+2025,114.6,80.9,269.9
+,,,
+"energy-intensive industries excl. chemicals and refining (index, 2010 = 100)",,,
+Year,"United Kingdom — divisions 17, 23, 24","Germany — divisions 17, 23, 24","China — divisions 17, 23, 24"
+2010,100,100,100
+2011,90.6,104.9,113
+2012,104.1,101.1,125.2
+2013,106.4,100.3,139.7
+2014,114.9,102.1,151.8
+2015,122.5,102.3,162.8
+2016,119.8,102.5,167.3
+2017,115.9,104.4,170
+2018,118.8,104.5,181.1
+2019,121.7,100.6,198.2
+2020,123.5,93.7,206.8
+2021,120.4,100.2,214.9
+2022,117.4,96.4,218.2
+2023,118.1,86.9,230
+2024,112.4,84.9,239.8
+2025,103.4,82.9,249.3
+,,,
+"steel, aluminium, cement and paper (index, 2010 = 100)",,,
+Year,"United Kingdom — steel, aluminium, cement, paper","Germany — steel, aluminium, cement, paper","China — steel, aluminium, cement, paper"
+2010,100,100,100
+2011,102.4,103,110
+2012,89.7,100,115.6
+2013,101,102.2,129.1
+2014,101.8,104.4,134.7
+2015,94.7,104.1,134.7
+2016,78,104.4,138.1
+2017,78.7,106.7,143.2
+2018,77.7,104.7,148.4
+2019,76.3,100.6,153.6
+2020,72.3,97.1,161
+2021,74.6,102.7,162.7
+2022,66.4,90.7,161.6
+2023,61.7,77.9,167.4
+2024,54.1,80.9,168.3
+2025,,,166.9

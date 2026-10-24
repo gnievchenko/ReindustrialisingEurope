@@ -1,0 +1,79 @@
+﻿Modelled price at year-ahead vs day-ahead wholesale,,,,
+"Real 2025 USD/MWh unless stated (annual-average market FX, Fed H.10; deflated with US CPI-U). Excludes VAT.",,,,
+"Modelled prices with full exemptions, supplier costs included. Year-ahead = wholesale at the forward price traded the year before delivery; day-ahead = delivery-year spot. UK prices at day-ahead before 2022, so its two lines coincide. Purple (UK, from 2018): wholesale averaged over the last three vintages, price weighted 85% unrelieved / 15% relieved (2024–25 exempt share). Shaded corridor (DE large) = partially relieved firm. Observed = survey band average, including unrelieved firms. Sources. EEX Phelix front-year; day-ahead annual averages from energy-charts/SMARD and the UK day-ahead series.",,,,
+,,,,
+"Medium industry — United Kingdom, medium industry (real 2025 USD/MWh)",,,,
+Year,observed,modelled using year-ahead wholesale,modelled using day-ahead wholesale,three-vintage wholesale blend
+2010,156.9,158.4,158.4,
+2011,169.7,171.5,171.5,
+2012,186.4,168.1,168.1,
+2013,197.6,185.3,185.3,
+2014,214.3,182,182,
+2015,203,175.3,175.3,
+2016,178.7,166.4,166.4,
+2017,176.8,168.2,168.2,
+2018,185.9,175.7,175.7,200.9
+2019,190.8,142.4,142.4,207.2
+2020,209.2,125.8,125.8,198.8
+2021,230.3,289.2,289.2,244
+2022,262.6,194.8,366.7,243.7
+2023,355.8,446.6,207.2,357.6
+2024,351.2,205,134.9,339.9
+2025,321.9,137.9,143.6,325.8
+,,,,
+"Medium industry — Germany, medium industry (real 2025 USD/MWh)",,,,
+Year,observed,modelled using year-ahead wholesale,modelled using day-ahead wholesale,
+2010,200.8,,,
+2011,225.3,187.8,190.2,
+2012,208.6,187.7,163.4,
+2013,234.1,184.3,163.2,
+2014,244.3,178.1,166.6,
+2015,197.1,147,141.8,
+2016,189.1,142.6,139.6,
+2017,188.4,144,155.3,
+2018,186.7,155.9,174.2,
+2019,188.3,164,155.3,
+2020,216,173.7,149,
+2021,220.9,165.1,244.7,
+2022,224.6,189.9,360.3,
+2023,232.7,429.6,196.7,
+2024,227.3,237.2,171.7,
+2025,217.9,186.6,187.3,
+,,,,
+"Large industry — United Kingdom, large industry (real 2025 USD/MWh)",,,,
+Year,observed,modelled using year-ahead wholesale,modelled using day-ahead wholesale,three-vintage wholesale blend
+2010,152.7,135.1,135.1,
+2011,162,147.5,147.5,
+2012,180,144.5,144.5,
+2013,184.6,161.2,161.2,
+2014,202.5,156.1,156.1,
+2015,191.9,149.9,149.9,
+2016,170.1,141.6,141.6,
+2017,156,144.2,144.2,
+2018,169.2,144.2,144.2,169.8
+2019,183.2,109.8,109.8,174.3
+2020,200.1,96.3,96.3,168.9
+2021,232,253.8,253.8,211
+2022,269.5,173.9,341.7,222.6
+2023,290.2,430.6,196.9,344.8
+2024,290.5,196.3,127.9,324.1
+2025,282,132.7,138.4,314.9
+,,,,
+"Large industry — Germany, large industry (real 2025 USD/MWh)",,,,
+Year,observed,modelled using year-ahead wholesale,modelled using day-ahead wholesale,
+2010,169,,,
+2011,200.7,151.7,154.2,
+2012,167,151.9,127.6,
+2013,186.8,142.6,121.4,
+2014,189.5,123.5,112,
+2015,147,100.5,95.3,
+2016,124.2,93.1,90.1,
+2017,147.8,93.1,104.4,
+2018,135.7,103.4,121.7,
+2019,130.8,117.7,109,
+2020,151.1,123.8,99.1,
+2021,175.4,112.2,191.9,
+2022,204,153.9,324.3,
+2023,194.6,394.3,161.4,
+2024,156.8,192.2,122.2,
+2025,163.2,141.5,142.2,

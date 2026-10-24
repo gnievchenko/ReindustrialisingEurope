@@ -1,0 +1,41 @@
+﻿"Observed industrial electricity prices, 2010–2025",,,
+"Real 2025 USD/MWh unless stated (annual-average market FX, Fed H.10; deflated with US CPI-U). Excludes VAT.",,,
+"Excl. VAT, incl. energy taxes. Bands. Medium: UK QEP Large (20–70 GWh/yr), DE Eurostat ID (2–20 GWh), CN large-industry tariff at 1–10 kV. Large: UK QEP Extra Large (>150 GWh), DE Eurostat IF (70–150 GWh), CN large-industry tariff at 220 kV. The 20 GWh archetype sits at the bottom of the UK band and the top of the German one. CN: no survey. To 2021, the average published tariff of seven industrial provinces (Jiangsu, Guangdong, Shandong, Zhejiang, Henan, Inner Mongolia, Sichuan), weighted by industrial electricity use. From 2022, rebuilt from market prices, network tariffs and levies where a province publishes all three: large site Jiangsu, joined by Guangdong from 2023 and Henan from 2024; medium site Jiangsu only. Sources. DESNZ QEP table 3.4.2; Eurostat nrg_pc_205; CN provincial tariff schedules to Oct 2021, then provincial trading-centre prices, grid agency-purchase notices and NDRC T&D schedules.",,,
+,,,
+medium industry (real 2025 USD/MWh),,,
+Year,United Kingdom,Germany,China
+2010,156.9,200.8,
+2011,169.7,225.3,
+2012,186.4,208.6,163.2
+2013,197.6,234.1,165.1
+2014,214.3,244.3,162.1
+2015,203,197.1,156.9
+2016,178.7,189.1,145.4
+2017,176.8,188.4,136.7
+2018,185.9,186.7,134.6
+2019,190.8,188.3,126.1
+2020,209.2,216,118.9
+2021,230.3,220.9,122.7
+2022,262.6,224.6,123.2
+2023,355.8,232.7,115.7
+2024,351.2,227.3,112
+2025,321.9,217.9,109.3
+,,,
+large industry (real 2025 USD/MWh),,,
+Year,United Kingdom,Germany,China
+2010,152.7,169,
+2011,162,200.7,
+2012,180,167,144.9
+2013,184.6,186.8,146.5
+2014,202.5,189.5,143.9
+2015,191.9,147,139
+2016,170.1,124.2,128.9
+2017,156,147.8,120.8
+2018,169.2,135.7,118.7
+2019,183.2,130.8,111.2
+2020,200.1,151.1,104.8
+2021,232,175.4,105.6
+2022,269.5,204,109.9
+2023,290.2,194.6,103.5
+2024,290.5,156.8,95.4
+2025,282,163.2,86.9

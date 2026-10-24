@@ -1,0 +1,27 @@
+﻿Cost of new generation against running existing gas,,,
+"Real 2025 USD/MWh unless stated (annual-average market FX, Fed H.10; deflated with US CPI-U). Excludes VAT.",,,
+"2023–24 vintages, converted at annual-average FX. Grey band = 2025 short-run marginal cost of existing gas plant in the UK and Germany (fuel plus carbon, 46–55% efficiency; method as in section 6): a technology whose full levelised cost sits below the band undercuts the running cost of gas already built. CN nuclear = range from $72 (IEA) to $85 (OECD/NEA 2020 at a common 7% cost of capital). UK nuclear = Hinkley Point C contracted price (£128.94/MWh, 2025 prices), not an LCOE. DE nuclear new build ($151–544, excl. back-end costs) runs off the axis; DE restart from an advocacy-adjacent source, against an independent NEA life-extension benchmark of $29–41. CCGT = combined-cycle gas turbine; PV = photovoltaic. Sources. DESNZ Generation Costs 2023 (UK); Fraunhofer ISE 2024 (DE); IEA WEO 2025 (CN); NAO 2026; Radiant Energy Group 2026; OECD/NEA 2020.",,,
+,,,
+"Levelised cost of generation, 2023–24 vintages",,,
+Country,Technology,Low,High (or point estimate)
+China,Onshore wind,,41.1
+China,Solar PV,,46.2
+China,Coal,,66.7
+China,Nuclear,71.8,84.6
+China,Gas CCGT,,102.6
+United Kingdom,Onshore wind,,62.1
+United Kingdom,Solar PV,,67
+United Kingdom,Offshore wind,,72
+United Kingdom,Nuclear (Hinkley C),,170.1
+United Kingdom,Gas CCGT,,186.4
+Germany,Nuclear restart,41.8,80.3
+Germany,Solar PV,45.5,76.6
+Germany,Onshore wind,47.8,102.2
+Germany,Offshore wind,61.1,114.4
+Germany,Gas CCGT,121,201
+Germany,Nuclear new-build,151,544.1
+,,,
+Grey band,,,
+"Gas SRMC 2025 (46–55% efficiency, carbon incl.)",Low,High,
+United Kingdom (NBP),101.6,121.5,
+Germany (TTF),101.8,121.8,
