@@ -4,7 +4,7 @@
 
 📄 **Read the study:** https://gnievchenko.github.io/ReindustrialisingEurope/
 
-> **Status: draft for review.** Figures may change; corrections are made as dated commits.
+> **Published 25 October 2026.** Corrections, if any, are made as dated commits.
 
 ---
 

@@ -1,364 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.13/html-to-image.min.js" integrity="sha512-iZ2ORl595Wx6miw+GuadDet4WQbdSWS3JLMoNfY8cRGoEFy6oT3G9IbcrBeL6AfkgpA51ETt/faX6yLV+/gFJg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script>
-      (function() {
-        // Capture host references before any artifact code runs: Window.parent
-        // is [Replaceable] (a top-level `var parent` in artifact code would
-        // replace the accessor with a data property), and a top-level
-        // `const crypto` would shadow the global — either would otherwise
-        // silently break the bridge for artifacts that worked before.
-        const realParent = window.parent;
-        const cryptoObj = window.crypto;
-        // crypto.randomUUID exists only in Secure Contexts; fall back to a
-        // unique non-crypto id elsewhere (http://LAN-IP dev flows) —
-        // uniqueness is what the bridge needs, unpredictability is
-        // defense-in-depth on top of the source guards.
-        const newRequestId =
-          cryptoObj && typeof cryptoObj.randomUUID === "function"
-            ? function () { return cryptoObj.randomUUID(); }
-            : function () { return Date.now() + "-" + Math.random(); };
-        const originalConsole = window.console;
-        window.console = {
-          log: (...args) => {
-            originalConsole.log(...args);
-            realParent.postMessage({ type: 'console', message: args.join(' ') }, '*');
-          },
-          error: (...args) => {
-            originalConsole.error(...args);
-            realParent.postMessage({ type: 'console', message: 'Error: ' + args.join(' ') }, '*');
-          },
-          warn: (...args) => {
-            originalConsole.warn(...args);
-            realParent.postMessage({ type: 'console', message: 'Warning: ' + args.join(' ') }, '*');
-          }
-        };
-
-        // Bridge request ids are crypto-random (not sequential) so they
-        // cannot be predicted by other frames in the tab.
-        let callbacksMap = new Map();
-        let streamControllers = new Map();
-        
-        window.claude = {
-          complete: (prompt) => {
-            return new Promise((resolve, reject) => {
-              const id = newRequestId();
-              callbacksMap.set(id, { resolve, reject });
-              realParent.postMessage({ type: 'claudeComplete', id, prompt }, '*');
-            });
-          }
-        };
-
-        window.storage = {
-          get: (key, shared = false) => {
-            return new Promise((resolve, reject) => {
-              const id = newRequestId();
-              callbacksMap.set(id, { resolve, reject });
-              realParent.postMessage({ type: 'storageGet', id, key, shared }, '*');
-            });
-          },
-          set: (key, value, shared = false) => {
-            return new Promise((resolve, reject) => {
-              const id = newRequestId();
-              callbacksMap.set(id, { resolve, reject });
-              realParent.postMessage({ type: 'storageSet', id, key, value, shared }, '*');
-            });
-          },
-          delete: (key, shared = false) => {
-            return new Promise((resolve, reject) => {
-              const id = newRequestId();
-              callbacksMap.set(id, { resolve, reject });
-              realParent.postMessage({ type: 'storageDelete', id, key, shared }, '*');
-            });
-          },
-          list: (prefix, shared = false) => {
-            return new Promise((resolve, reject) => {
-              const id = newRequestId();
-              callbacksMap.set(id, { resolve, reject });
-              realParent.postMessage({ type: 'storageList', id, prefix, shared }, '*');
-            });
-          }
-        };
-
-        let pendingBlobs = new Map();
-        URL.createObjectURL = (blob) => {
-          // Store the blob and create an ID and URL for it
-          const blobId = `blob-${Date.now()}-${Math.random()}`;
-          pendingBlobs.set(blobId, blob);
-          return `blob-request://${blobId}`;
-        };
-
-        URL.revokeObjectURL = (url) => {
-          // Remove the blob from our store
-          const blobId = url.replace("blob-request://", "");
-          pendingBlobs.delete(blobId);
-        };
-
-        const getBlobFromURL = (url) => {
-          const blobId = url.replace("blob-request://", "");
-          return pendingBlobs.get(blobId);
-        };
-
-        // Override global fetch with streaming support
-        window.fetch = (url, init = {}) => {
-          return new Promise((resolve, reject) => {
-            const id = newRequestId();
-            const channelId = `fetch-${id}-${Date.now()}`;
-            
-            callbacksMap.set(id, { 
-              resolve: (response) => {
-                // Null-body statuses: Response(stream, {status: 204}) throws
-                // per the Fetch spec, which would escape this resolver and
-                // hang the artifact's await forever.
-                if (response.status === 204 || response.status === 205 || response.status === 304) {
-                  try {
-                    resolve(new Response(null, {
-                      status: response.status,
-                      statusText: response.statusText,
-                      headers: response.headers
-                    }));
-                  } catch (err) {
-                    // Invalid statusText/header bytes can throw here too.
-                    reject(new TypeError(
-                      'Bridge fetch: unconstructable response (status ' + response.status + ')'
-                    ));
-                  }
-                  return;
-                }
-                // Create a ReadableStream for the response body
-                const stream = new ReadableStream({
-                  start(controller) {
-                    streamControllers.set(channelId, controller);
-                  },
-                  cancel() {
-                    streamControllers.delete(channelId);
-                  }
-                });
-                
-                // Create and return the Response with the stream. Response()
-                // requires status in [200, 599]; an opaque/no-cors fetch
-                // forwards status 0, which would throw here and escape the
-                // resolver, hanging the artifact's await. Surface it as a
-                // network-error-shaped rejection instead.
-                try {
-                  resolve(new Response(stream, {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: response.headers
-                  }));
-                } catch (err) {
-                  streamControllers.delete(channelId);
-                  reject(new TypeError(
-                    'Bridge fetch: unconstructable response (status ' + response.status + ')'
-                  ));
-                }
-              },
-              reject,
-              channelId
-            });
-            
-            realParent.postMessage({
-              type: 'proxyFetch',
-              id,
-              url,
-              init,
-              channelId
-            }, '*');
-          });
-        };
-
-        window.addEventListener('message', async (event) => {
-          // Only the embedding parent may drive the bridge — sibling and
-          // nested frames can also postMessage into this window.
-          if (event.source !== realParent) return;
-          if (event.data.type === 'takeScreenshot') {
-            // Echo the request's nonce so the requester can correlate the
-            // reply to ITS request — a reply without the expected nonce
-            // (e.g. from a stale pre-remount artifact) is ignored upstream.
-            const screenshotNonce = event.data.nonce;
-            const rootElement = document.getElementById('artifacts-component-root-html');
-            if (!rootElement) {
-              realParent.postMessage({
-                type: 'screenshotError',
-                nonce: screenshotNonce,
-                error: new Error('Root element not found'),
-              }, '*');
-              return;
-            }
-            // Catch CDN load failures (htmlToImage undefined) and toPng errors
-            // so the parent always gets a response instead of hanging forever.
-            try {
-              const screenshot = await htmlToImage.toPng(rootElement, {
-                imagePlaceholder:
-                  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAA1JREFUGFdjePDgwX8ACOQDoNsk0PMAAAAASUVORK5CYII=",
-              });
-              realParent.postMessage({
-                type: 'screenshotData',
-                nonce: screenshotNonce,
-                data: screenshot,
-              }, '*');
-            } catch (err) {
-              realParent.postMessage({
-                type: 'screenshotError',
-                nonce: screenshotNonce,
-                error: err instanceof Error ? err : new Error(String(err)),
-              }, '*');
-            }
-          } else if (event.data.type === 'claudeComplete') {
-            const callback = callbacksMap.get(event.data.id);
-            if (!callback) return;
-            if (event.data.error) {
-              callback.reject(new Error(event.data.error));
-            } else {
-              callback.resolve(event.data.completion);
-            }
-            callbacksMap.delete(event.data.id);
-          } else if (event.data.type === 'proxyFetchResponse') {
-            const callback = callbacksMap.get(event.data.id);
-            if (!callback) return;
-            if (event.data.error) {
-              callback.reject(new Error(event.data.error));
-              callbacksMap.delete(event.data.id);
-            } else {
-              // Initial response with headers, status, etc.
-              callback.resolve({
-                status: event.data.status,
-                statusText: event.data.statusText,
-                headers: event.data.headers
-              });
-              // Don't delete the callback yet if streaming
-              if (!event.data.body) {
-                callbacksMap.delete(event.data.id);
-              }
-            }
-          } else if (event.data.type === 'proxyFetchStream') {
-            // Handle streaming data chunks
-            const controller = streamControllers.get(event.data.channelId);
-            if (controller) {
-              if (event.data.error) {
-                controller.error(new Error(event.data.error));
-                streamControllers.delete(event.data.channelId);
-              } else if (event.data.done) {
-                controller.close();
-                streamControllers.delete(event.data.channelId);
-                // Clean up the callback
-                const callback = Array.from(callbacksMap.entries()).find(
-                  ([_, value]) => value.channelId === event.data.channelId
-                );
-                if (callback) {
-                  callbacksMap.delete(callback[0]);
-                }
-              } else if (event.data.chunk) {
-                controller.enqueue(new Uint8Array(event.data.chunk));
-              }
-            }
-          } else if (event.data.type === 'storageGet') {
-            const callback = callbacksMap.get(event.data.id);
-            if (!callback) return;
-            if (event.data.error) {
-              callback.reject(new Error(event.data.error));
-            } else {
-              callback.resolve(event.data.result);
-            }
-            callbacksMap.delete(event.data.id);
-          } else if (event.data.type === 'storageSet') {
-            const callback = callbacksMap.get(event.data.id);
-            if (!callback) return;
-            if (event.data.error) {
-              callback.reject(new Error(event.data.error));
-            } else {
-              callback.resolve(event.data.result);
-            }
-            callbacksMap.delete(event.data.id);
-          } else if (event.data.type === 'storageDelete') {
-            const callback = callbacksMap.get(event.data.id);
-            if (!callback) return;
-            if (event.data.error) {
-              callback.reject(new Error(event.data.error));
-            } else {
-              callback.resolve(event.data.result);
-            }
-            callbacksMap.delete(event.data.id);
-          } else if (event.data.type === 'storageList') {
-            const callback = callbacksMap.get(event.data.id);
-            if (!callback) return;
-            if (event.data.error) {
-              callback.reject(new Error(event.data.error));
-            } else {
-              callback.resolve(event.data.result);
-            }
-            callbacksMap.delete(event.data.id);
-          }
-        });
-
-        window.addEventListener('click', (event) => {
-          const isEl = event.target instanceof HTMLElement;
-          if (!isEl) return;
-    
-          // find ancestor links
-          const linkEl = event.target.closest("a");
-          if (!linkEl || !linkEl.href) return;
-    
-          event.preventDefault();
-          event.stopImmediatePropagation();
-    
-          if (linkEl.href.startsWith("blob-request:")) {
-            const blob = getBlobFromURL(linkEl.href);
-            if (!blob) return;
-            void blob.arrayBuffer().then((data) => {
-              realParent.postMessage({
-                type: "downloadFile",
-                filename: linkEl.download,
-                data,
-                mimeType: blob.type || "application/octet-stream",
-              });
-            });
-          } else if (linkEl.href.startsWith("data:")) {
-            const [header, base64Data] = linkEl.href.split(",");
-            const mimeMatch = header.match(/data:([^;]+)/);
-            const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
-            const binaryString = atob(base64Data);
-            const data = Uint8Array.from(binaryString, (c) =>
-              c.charCodeAt(0),
-            ).buffer;
-            realParent.postMessage({
-              type: "downloadFile",
-              filename: linkEl.download,
-              data,
-              mimeType,
-            });
-          } else {
-            let linkUrl;
-            try {
-              linkUrl = new URL(linkEl.href);
-            } catch (error) {
-              return;
-            }
-    
-            if (linkUrl.hostname === window.location.hostname) return;
-      
-            realParent.postMessage({
-              type: 'openExternal',
-              href: linkEl.href,
-            }, '*');
-          }
-      });
-
-        const originalOpen = window.open;
-        window.open = function (url) {
-          realParent.postMessage({
-            type: "openExternal",
-            href: url,
-          }, "*");
-        };
-
-        window.addEventListener('error', (event) => {
-          realParent.postMessage({ type: 'console', message: 'Uncaught Error: ' + event.message }, '*');
-        });
-      })();
-    </script>
-  
-<meta charset="utf-8">
+    <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Paying for power — why UK industry pays what it does</title>
 <meta name="description" content="Why British industry pays about three times what China does for electricity, what the bill is made of, and which fixes would actually lower it. Built bottom-up from published tariffs, 2010–2025.">
@@ -545,92 +187,92 @@
 
 <header class="hero">
   <div class="byline">Gniewomir Flis · 24 October 2026</div>
-  <h1 data-ed="0">Paying for Power&nbsp;</h1>
-  <p class="standfirst" data-ed="1">Britain’s heavy industry has halved in fifteen years, and Europe is losing industrial capacity to China. Or so goes the narrative. Many online commenters like to reduce the discussion to high industrial electricity prices, and blame net-zero policies for this outcome.</p>
-  <p class="standfirst" data-ed="2">Not satisfied with this overly reductive framing, I set out to uncover how much more expensive European electricity prices really are, what is driving the wedge, and whether the online pundits’ favourite answers — a nuclear renaissance or a North Sea drilling campaign — are credible policy answers.</p>
+  <h1>Paying for Power&nbsp;</h1>
+  <p class="standfirst">Britain’s heavy industry has halved in fifteen years, and Europe is losing industrial capacity to China. Or so goes the narrative. Many online commenters like to reduce the discussion to high industrial electricity prices, and blame net-zero policies for this outcome.</p>
+  <p class="standfirst">Not satisfied with this overly reductive framing, I set out to uncover how much more expensive European electricity prices really are, what is driving the wedge, and whether the online pundits’ favourite answers — a nuclear renaissance or a North Sea drilling campaign — are credible policy answers.</p>
 </header>
 
 <main>
-  <h2 data-ed="3"><span class="secno">1</span>Industrial archetypes</h2>
-  <p data-ed="4">In national statistics industrial activity is a broad term. It encompasses anything from mom-and-pop bakeries on the local high street to multi-acre integrated steelworks. Most countries aggregate industrial electricity statistics into consumption bands. For instance, in the UK any business drawing between 2 and 20 GWh a year falls into the same statistical band. In addition to generation cost, electricity tariffs typically include network charges, levies, and taxes, which can again differ depending on the user’s voltage, power draw or activity.</p>
-  <p data-ed="5">Therefore, in attempting to reconstruct a ‘typical’ electricity tariff, one has to define what a ‘typical’ industrial user is. Yet the challenge is that there is no ‘typical’ industrial user; even within the same industry, different business models and technologies will change the profile of power demand.</p>
-  <p data-ed="6">Still, for the purpose of this piece, I have come up with two archetypes: large, and medium-sized industrial users, which I treat as a proxy. They differ not only by annual energy consumption, which defines the type of network they would plug into — transmission vs. distribution — but also by their uptime. The two archetypes are summarised below:</p>
+  <h2 id="ch1"><span class="secno">1</span>Industrial archetypes</h2>
+  <p>In national statistics industrial activity is a broad term. It encompasses anything from mom-and-pop bakeries on the local high street to multi-acre integrated steelworks. Most countries aggregate industrial electricity statistics into consumption bands. For instance, in the UK any business drawing between 2 and 20 GWh a year falls into the same statistical band. In addition to generation cost, electricity tariffs typically include network charges, levies, and taxes, which can again differ depending on the user’s voltage, power draw or activity.</p>
+  <p>Therefore, in attempting to reconstruct a ‘typical’ electricity tariff, one has to define what a ‘typical’ industrial user is. Yet the challenge is that there is no ‘typical’ industrial user; even within the same industry, different business models and technologies will change the profile of power demand.</p>
+  <p>Still, for the purpose of this piece, I have come up with two archetypes: large, and medium-sized industrial users, which I treat as a proxy. They differ not only by annual energy consumption, which defines the type of network they would plug into — transmission vs. distribution — but also by their uptime. The two archetypes are summarised below:</p>
 
   <div class="archrow sans">
     <div class="arch">
-      <div class="ah" data-ed="7">Large archetype</div>
+      <div class="ah">Large archetype</div>
       <dl>
-        <div><dt data-ed="8">Annual energy draw</dt><dd data-ed="9">500 GWh</dd></div>
-        <div><dt data-ed="10">Uptime</dt><dd data-ed="11">8,000 h/yr (~91% load factor, baseload)</dd></div>
-        <div><dt data-ed="12">Connection</dt><dd data-ed="13">Transmission grid (UK: Humber, zone 5)</dd></div>
-        <div><dt data-ed="14">Think of</dt><dd data-ed="15">An electric-arc steelworks, chlor-alkali or industrial-gases plant</dd></div>
+        <div><dt>Annual energy draw</dt><dd>500 GWh</dd></div>
+        <div><dt>Uptime</dt><dd>8,000 h/yr (~91% load factor, baseload)</dd></div>
+        <div><dt>Connection</dt><dd>Transmission grid (UK: Humber, zone 5)</dd></div>
+        <div><dt>Think of</dt><dd>An electric-arc steelworks, chlor-alkali or industrial-gases plant</dd></div>
       </dl>
     </div>
     <div class="arch">
-      <div class="ah" data-ed="16">Medium archetype</div>
+      <div class="ah">Medium archetype</div>
       <dl>
-        <div><dt data-ed="17">Annual energy draw</dt><dd data-ed="18">20 GWh</dd></div>
-        <div><dt data-ed="19">Uptime</dt><dd data-ed="20">5,000 h/yr (two-shift operation)</dd></div>
-        <div><dt data-ed="21">Connection</dt><dd data-ed="22">High-voltage (HV) distribution (UK: the Yorkshire distribution network operator)</dd></div>
-        <div><dt data-ed="23">Think of</dt><dd data-ed="24">A glassworks, metal foundry or paper mill</dd></div>
+        <div><dt>Annual energy draw</dt><dd>20 GWh</dd></div>
+        <div><dt>Uptime</dt><dd>5,000 h/yr (two-shift operation)</dd></div>
+        <div><dt>Connection</dt><dd>High-voltage (HV) distribution (UK: the Yorkshire distribution network operator)</dd></div>
+        <div><dt>Think of</dt><dd>A glassworks, metal foundry or paper mill</dd></div>
       </dl>
     </div>
   </div>
 
-  <p data-ed="25">Both archetypes assume a steady load while operating and optimal connection. Unless stated otherwise, prices are in real 2025 US dollars per MWh. Sterling and euro figures in the text are in money of the year cited.</p>
+  <p>Both archetypes assume a steady load while operating and optimal connection. Unless stated otherwise, prices are in real 2025 US dollars per MWh. Sterling and euro figures in the text are in money of the year cited.</p>
   
 
-  <h2 data-ed="26"><span class="secno">2</span>What industry actually pays</h2>
+  <h2 id="ch2"><span class="secno">2</span>What industry actually pays</h2>
   
-  <p data-ed="27">Let's start with records of historical prices paid by industry, referred to as ‘observed’ prices. Those prices have been pulled from national surveys; DESNZ’s <a href="https://www.gov.uk/government/statistical-data-sets/gas-and-electricity-prices-in-the-non-domestic-sector" target="_blank" rel="noopener">Quarterly Energy Prices survey</a> (QEP) for Britain and <a href="https://ec.europa.eu/eurostat/databrowser/view/nrg_pc_205/default/table" target="_blank" rel="noopener">Eurostat’s industrial bands</a> for Germany. China runs no equivalent survey, and has no single national price: each province sets its own. Its line is therefore an average of the main industrial provinces, each counted in proportion to how much electricity its industry uses. Until 2021 that means the published tariffs of seven provinces. After the 2021 reform the price has to be rebuilt from its parts — market price, <a href="https://www.ndrc.gov.cn/xxgk/zcfb/tz/202305/t20230515_1355747.html" target="_blank" rel="noopener">network tariff</a> and levies — and only a few provinces publish all of them, so from 2022 the Chinese line rests mostly on Jiangsu province.</p>
+  <p>Let's start with records of historical prices paid by industry, referred to as ‘observed’ prices. Those prices have been pulled from national surveys; DESNZ’s <a href="https://www.gov.uk/government/statistical-data-sets/gas-and-electricity-prices-in-the-non-domestic-sector" target="_blank" rel="noopener">Quarterly Energy Prices survey</a> (QEP) for Britain and <a href="https://ec.europa.eu/eurostat/databrowser/view/nrg_pc_205/default/table" target="_blank" rel="noopener">Eurostat’s industrial bands</a> for Germany. China runs no equivalent survey, and has no single national price: each province sets its own. Its line is therefore an average of the main industrial provinces, each counted in proportion to how much electricity its industry uses. Until 2021 that means the published tariffs of seven provinces. After the 2021 reform the price has to be rebuilt from its parts — market price, <a href="https://www.ndrc.gov.cn/xxgk/zcfb/tz/202305/t20230515_1355747.html" target="_blank" rel="noopener">network tariff</a> and levies — and only a few provinces publish all of them, so from 2022 the Chinese line rests mostly on Jiangsu province.</p>
 
   <figure class="viz" id="fig1"></figure>
 
-  <p data-ed="28">Plotting observed prices, it's apparent industrial electricity prices in the UK have risen meaningfully since 2020, both for medium and large-scale industry. In contrast, those in Germany have stayed roughly flat since 2010. Meanwhile Chinese industrials have benefited from declining power prices, a trend that has been running since at least 2012. <b>Consequently, by 2025 German industrials paid ~2x the power price in China, and British ones about 3x.</b> Has this difference led to deindustrialisation?</p>
+  <p>Plotting observed prices, it's apparent industrial electricity prices in the UK have risen meaningfully since 2020, both for medium and large-scale industry. In contrast, those in Germany have stayed roughly flat since 2010. Meanwhile Chinese industrials have benefited from declining power prices, a trend that has been running since at least 2012. <b>Consequently, by 2025 German industrials paid ~2x the power price in China, and British ones about 3x.</b> Has this difference led to deindustrialisation?</p>
 
   
 
 
-  <p data-ed="29">Plotting total<i> </i>manufacturing output reveals that despite rising electricity prices, British manufacturing more broadly has remained resilient and has even grown by a fifth since 2010. If electricity prices were the main driver of industrial competitiveness we would expect manufacturing in Germany to grow even more. Yet counterintuitively, despite electricity rates staying roughly flat, output rose until 2018 but has since fallen back to levels last seen in 2010. In comparison, Chinese manufacturing output has grown by somewhere between 133% and 196%, depending on which published correction is used.</p>
+  <p>Plotting total<i> </i>manufacturing output reveals that despite rising electricity prices, British manufacturing more broadly has remained resilient and has even grown by a fifth since 2010. If electricity prices were the main driver of industrial competitiveness we would expect manufacturing in Germany to grow even more. Yet counterintuitively, despite electricity rates staying roughly flat, output rose until 2018 but has since fallen back to levels last seen in 2010. In comparison, Chinese manufacturing output has grown by somewhere between 133% and 196%, depending on which published correction is used.</p>
   
-  <p data-ed="30">Perhaps total manufacturing is too broad an index: it captures many businesses for which electricity is not a significant cost. So the top-right panel narrows it to the five divisions statisticians usually group as energy-intensive: paper, refining, chemicals, non-metallic minerals (cement, glass, ceramics) and basic metals. On that basket the picture continues to surprise: Chinese output has grown by 170% since 2010 and German output has fallen by 19%, yet British output is <i>up</i> 15%, despite Britain paying the highest electricity prices of the three.</p>
-  <p data-ed="31">Britain’s relative outperformance may be caused by growth in its chemical and refining sectors, which buy most of their energy as gas and oil feedstock rather than electricity. Excluding chemicals and refining (bottom left) leaves British output roughly where it started, against 17% lower in Germany and about 150% higher in China. Excluding also glass and downstream processing such as casting or rolling (bottom right) finally yields expected results: between 2010 and 2024 British output fell by <b>46%</b> and German output by 19%, while Chinese output grew by 68%.</p>
+  <p>Perhaps total manufacturing is too broad an index: it captures many businesses for which electricity is not a significant cost. So the top-right panel narrows it to the five divisions statisticians usually group as energy-intensive: paper, refining, chemicals, non-metallic minerals (cement, glass, ceramics) and basic metals. On that basket the picture continues to surprise: Chinese output has grown by 170% since 2010 and German output has fallen by 19%, yet British output is <i>up</i> 15%, despite Britain paying the highest electricity prices of the three.</p>
+  <p>Britain’s relative outperformance may be caused by growth in its chemical and refining sectors, which buy most of their energy as gas and oil feedstock rather than electricity. Excluding chemicals and refining (bottom left) leaves British output roughly where it started, against 17% lower in Germany and about 150% higher in China. Excluding also glass and downstream processing such as casting or rolling (bottom right) finally yields expected results: between 2010 and 2024 British output fell by <b>46%</b> and German output by 19%, while Chinese output grew by 68%.</p>
   
   <figure class="viz" id="fig2"></figure>
 
-  <p data-ed="32">British industrial losses are therefore concentrated in primary production — steelmaking, smelting, clinker — while downstream processing in the same divisions has held up. This is exactly what we would expect given that primary production is normally the most energy intensive step. In Germany, by contrast, the decline runs across every energy-intensive division, chemicals included.</p>
+  <p>British industrial losses are therefore concentrated in primary production — steelmaking, smelting, clinker — while downstream processing in the same divisions has held up. This is exactly what we would expect given that primary production is normally the most energy intensive step. In Germany, by contrast, the decline runs across every energy-intensive division, chemicals included.</p>
 
   
 
-  <p data-ed="33">The evidence is consistent with electricity prices driving the loss of primary production. The natural follow-up is to understand where the difference in electricity rates comes from.</p>
+  <p>The evidence is consistent with electricity prices driving the loss of primary production. The natural follow-up is to understand where the difference in electricity rates comes from.</p>
 
-  <h2 data-ed="34"><span class="secno">3</span>Anatomy of an electricity bill</h2>
-  <p data-ed="35">The electricity bill can be decomposed into four major types of charges: wholesale, network, levies &amp; taxes, and supplier margin.</p>
+  <h2 id="ch3"><span class="secno">3</span>Anatomy of an electricity bill</h2>
+  <p>The electricity bill can be decomposed into four major types of charges: wholesale, network, levies &amp; taxes, and supplier margin.</p>
   <div class="defs">
-    <p data-ed="36"><b>Wholesale.</b> The energy itself, bought at day-ahead or year-ahead market prices.</p>
-    <p data-ed="37"><b>Network, system &amp; balancing.</b> Transmission and distribution use-of-system charges (TNUoS and DUoS in Britain; Netzentgelte in Germany; 输配电价 in China) plus system operation and balancing (BSUoS).</p>
-    <p data-ed="38"><b>Levies &amp; taxes, incl. generation-capital recovery.</b> These are policy costs, i.e. often subsidies, recovered through bills. In Britain it's the Renewables Obligation, Contracts for Difference and feed-in tariffs (RO, CfD, FiT); in Germany the EEG, combined-heat-and-power and offshore levies; in China, government funds and surcharges. This bracket also includes any non-levy electricity tax.</p>
-    <p style="margin-bottom:0" data-ed="39"><b>Supplier retail costs &amp; margin.</b> These are not usually published in tariff schedules, so I have estimated them using <a href="https://www.ofgem.gov.uk/transparency-document/energy-companies-consolidated-segmental-statements-css" target="_blank" rel="noopener">Ofgem’s Consolidated Segmental Statements</a> for Britain, BNetzA’s “Vertrieb und Marge” for Germany. For China there is no separate layer to add: until the 2021 reform the grid company sold power at a bundled catalogue tariff, and since then users buying through grid agency purchase (代理购电) pay the grid’s average purchase cost with no retail margin on top. Users who trade directly may pay a retailer a spread but that is not published nationally and is omitted here.</p>
+    <p><b>Wholesale.</b> The energy itself, bought at day-ahead or year-ahead market prices.</p>
+    <p><b>Network, system &amp; balancing.</b> Transmission and distribution use-of-system charges (TNUoS and DUoS in Britain; Netzentgelte in Germany; 输配电价 in China) plus system operation and balancing (BSUoS).</p>
+    <p><b>Levies &amp; taxes, incl. generation-capital recovery.</b> These are policy costs, i.e. often subsidies, recovered through bills. In Britain it's the Renewables Obligation, Contracts for Difference and feed-in tariffs (RO, CfD, FiT); in Germany the EEG, combined-heat-and-power and offshore levies; in China, government funds and surcharges. This bracket also includes any non-levy electricity tax.</p>
+    <p style="margin-bottom:0"><b>Supplier retail costs &amp; margin.</b> These are not usually published in tariff schedules, so I have estimated them using <a href="https://www.ofgem.gov.uk/transparency-document/energy-companies-consolidated-segmental-statements-css" target="_blank" rel="noopener">Ofgem’s Consolidated Segmental Statements</a> for Britain, BNetzA’s “Vertrieb und Marge” for Germany. For China there is no separate layer to add: until the 2021 reform the grid company sold power at a bundled catalogue tariff, and since then users buying through grid agency purchase (代理购电) pay the grid’s average purchase cost with no retail margin on top. Users who trade directly may pay a retailer a spread but that is not published nationally and is omitted here.</p>
   </div>
-  <p data-ed="40">Since in liberalised electricity markets there is normally a historical record of prices, and the levies, taxes and network charges are transparently published, it becomes possible to build a model of how much a business is expected to pay for electricity in a year.</p>
-  <p data-ed="41">However, before I present you the charts, I need to caveat them by underlining that the expected prices are a <u>model</u>. While the myriad of charges tend to be publicly available, there are many - sometimes dozens - of different tariffs depending on user's power draw and location, and therefore even a similar business operating in a different part of the country may experience different tariffs. The tariffs I model are a consequence of the business archetypes I have defined earlier.</p>
-  <p data-ed="42">Because the archetypes I constructed are a theoretical, idealised version of a business, the modelled rates are likely to err on the <i>optimistic</i> side (i.e. be lower than reality) as they do not take into account emergency constraints or real-life considerations, notably hedging. This limitation is a serious one that will be discussed later. But now, let's look at the charts:</p>
+  <p>Since in liberalised electricity markets there is normally a historical record of prices, and the levies, taxes and network charges are transparently published, it becomes possible to build a model of how much a business is expected to pay for electricity in a year.</p>
+  <p>However, before I present you the charts, I need to caveat them by underlining that the expected prices are a <u>model</u>. While the myriad of charges tend to be publicly available, there are many - sometimes dozens - of different tariffs depending on user's power draw and location, and therefore even a similar business operating in a different part of the country may experience different tariffs. The tariffs I model are a consequence of the business archetypes I have defined earlier.</p>
+  <p>Because the archetypes I constructed are a theoretical, idealised version of a business, the modelled rates are likely to err on the <i>optimistic</i> side (i.e. be lower than reality) as they do not take into account emergency constraints or real-life considerations, notably hedging. This limitation is a serious one that will be discussed later. But now, let's look at the charts:</p>
 
   <figure class="viz" id="fig3"></figure>
 
-  <p data-ed="43">The first thing that jumps at me is the extent to which policy costs increase electricity bills. From 2016 to 2020, <b>between a third and a half of an unrelieved large British site’s bill went on policy costs</b> (29–42% at the medium site), at least on paper. In Germany, from 2013 to 2021, levies and taxes <b>more than doubled</b> the rest of the bill. China’s catalogue tariffs bundled every component until 2021, but the government funds inside them were published: the renewables surcharge from 2016 was barely $4/MWh, alongside smaller water-conservancy and reservoir funds. As a result levies and charges likely amount to single-digit % of the entire $100+/MWh tariff.</p>
-  <p data-ed="44">Second takeaway is related to the first; German policy costs dropped sharply in 2022. In that year, Germany moved the cost of its EEG subsidy from the electricity bill to the general taxpayer. <b>While this is a key lever to reducing electricity bills,</b> it merely shifts the burden of payment.</p>
-  <p data-ed="45">Third is that British and German wholesale costs tend to move in tandem, while Chinese wholesale costs are falling. I will come back to this in <i>Section 6</i>.</p>
-  <p data-ed="46">Fourth, <i>network charges</i> are the smallest part of the gap between the different countries. For a large site in 2025 they are similar in Britain and Germany ($30 and $34/MWh) and about half that in China ($17); at medium size Britain and China are level (about $36) and Germany is higher ($54). Of the roughly $120/MWh price gap between an unrelieved large British site and its Chinese peer, network charges explain about $14. But for a relieved site, the difference is practically none.</p>
-  <p data-ed="47">Finally, in Germany, the observed price appears to be lower than what officially published rates would suggest. Which brings us to the topic of <i>industrial exemptions</i>.</p>
+  <p>The first thing that jumps at me is the extent to which policy costs increase electricity bills. From 2016 to 2020, <b>between a third and a half of an unrelieved large British site’s bill went on policy costs</b> (29–42% at the medium site), at least on paper. In Germany, from 2013 to 2021, levies and taxes <b>more than doubled</b> the rest of the bill. China’s catalogue tariffs bundled every component until 2021, but the government funds inside them were published: the renewables surcharge from 2016 was barely $4/MWh, alongside smaller water-conservancy and reservoir funds. As a result levies and charges likely amount to single-digit % of the entire $100+/MWh tariff.</p>
+  <p>Second takeaway is related to the first; German policy costs dropped sharply in 2022. In that year, Germany moved the cost of its EEG subsidy from the electricity bill to the general taxpayer. <b>While this is a key lever to reducing electricity bills,</b> it merely shifts the burden of payment.</p>
+  <p>Third is that British and German wholesale costs tend to move in tandem, while Chinese wholesale costs are falling. I will come back to this in <i>Section 6</i>.</p>
+  <p>Fourth, <i>network charges</i> are the smallest part of the gap between the different countries. For a large site in 2025 they are similar in Britain and Germany ($30 and $34/MWh) and about half that in China ($17); at medium size Britain and China are level (about $36) and Germany is higher ($54). Of the roughly $120/MWh price gap between an unrelieved large British site and its Chinese peer, network charges explain about $14. But for a relieved site, the difference is practically none.</p>
+  <p>Finally, in Germany, the observed price appears to be lower than what officially published rates would suggest. Which brings us to the topic of <i>industrial exemptions</i>.</p>
 
-  <h2 data-ed="48"><span class="secno">4</span>Reliefs and exemptions</h2>
-  <p data-ed="49">In practice, neither Britain nor Germany charges its heaviest industry the full stack of charges. For instance, Britain exempts eligible EIIs from the renewables levies (85% from 2018, <a href="https://www.legislation.gov.uk/uksi/2024/409" target="_blank" rel="noopener">100% since April 2024</a>), excludes them from the Capacity Market charge, and compensates network charges at 60%, rising to <a href="https://www.legislation.gov.uk/uksi/2026/243" target="_blank" rel="noopener">90% from April 2026</a>. Germany also exempts its industrial users from some levies and network charges. Today the two schemes pick different firms: Britain tests the share of electricity costs in a firm’s gross value added, while Germany’s current rules favour large and round-the-clock energy consumption.</p>
+  <h2 id="ch4"><span class="secno">4</span>Reliefs and exemptions</h2>
+  <p>In practice, neither Britain nor Germany charges its heaviest industry the full stack of charges. For instance, Britain exempts eligible EIIs from the renewables levies (85% from 2018, <a href="https://www.legislation.gov.uk/uksi/2024/409" target="_blank" rel="noopener">100% since April 2024</a>), excludes them from the Capacity Market charge, and compensates network charges at 60%, rising to <a href="https://www.legislation.gov.uk/uksi/2026/243" target="_blank" rel="noopener">90% from April 2026</a>. Germany also exempts its industrial users from some levies and network charges. Today the two schemes pick different firms: Britain tests the share of electricity costs in a firm’s gross value added, while Germany’s current rules favour large and round-the-clock energy consumption.</p>
   
 
   <div class="archrow sans">
     <div class="arch">
-      <div class="ah" data-ed="50">Industrial electricity rate exemptions in the UK and Germany</div>
+      <div class="ah">Industrial electricity rate exemptions in the UK and Germany</div>
       <table class="cmp">
         <thead><tr><th scope="col"></th><th scope="col"><i style="background:var(--uk)"></i>United Kingdom</th><th scope="col"><i style="background:var(--de)"></i>Germany</th></tr></thead>
         <tbody>
@@ -647,81 +289,81 @@
     </div>
   </div>
 
-  <p data-ed="51">Applying the full force of exemptions to the modelled price reveals the extent to which power prices can be lowered via policy. Holding everything else constant, full relief cuts a large British site’s 2025 premium over its Chinese peer from about <b>155%</b> to around <b>55%</b>, and a medium site’s from about <b>110%</b> to only around <b>25%</b>.</p>
+  <p>Applying the full force of exemptions to the modelled price reveals the extent to which power prices can be lowered via policy. Holding everything else constant, full relief cuts a large British site’s 2025 premium over its Chinese peer from about <b>155%</b> to around <b>55%</b>, and a medium site’s from about <b>110%</b> to only around <b>25%</b>.</p>
 
   <figure class="viz" id="fig4"></figure>
 
-  <p data-ed="52">What's more, a fully relieved medium-archetype business in the UK signing an electricity supply contract today should be paying a rate closer to that in China than in Germany. Even for large industrials, such a contract should be marginally cheaper in the UK than in Germany.</p>
+  <p>What's more, a fully relieved medium-archetype business in the UK signing an electricity supply contract today should be paying a rate closer to that in China than in Germany. Even for large industrials, such a contract should be marginally cheaper in the UK than in Germany.</p>
 
   <figure class="viz" id="fig5"></figure>
 
-  <p data-ed="53">So, exempt industries from paying taxes and levies and deindustrialisation solved? Perhaps. But it's a tradeoff: every exempted dollar/pound/euro must be recovered from consumers who do not qualify — meaning higher retail rates, which are even higher than unrelieved industrial — or via general taxation.</p>
-  <p data-ed="54">That transfer cost is the reason why eligibility for relief comes with narrow conditions. Electricity suppliers’ <a href="https://www.ofgem.gov.uk/sites/default/files/2026-03/RO_24-25_SY23_Annual_Report-20260327121336.pdf" target="_blank" rel="noopener">Renewables Obligation returns</a> put exempted supply at 12.0 TWh in 2024–25, about <b>15% of British industrial electricity</b>, across some <a href="https://hansard.parliament.uk/commons/2026-02-04/debates/cd4fcb2b-982e-4a88-a906-e77cd6bd1716/DraftEnergy-IntensiveIndustryElectricitySupportPaymentsAndLevy(Amendment)Regulations2026" target="_blank" rel="noopener">550 firms</a>.</p>
-  <p data-ed="55">How much of the remaining 85% could claim relief but does not? No register of eligible-but-unclaimed volume exists, but the evidence that does points to the rules rather than take-up. When the scheme was announced in February 2023, the government expected <a href="https://www.gov.uk/government/news/government-action-to-supercharge-competitiveness-in-key-british-industries-and-grow-economy" target="_blank" rel="noopener">about 300 businesses</a> to qualify; by early 2026 some 550 held certificates, nearly twice the design estimate. A scheme that overshoots its own eligibility estimate is obviously not short of applicants. The caveat is that firms are not volume: a handful of large eligible sites outside the scheme would matter more than many small ones inside it.</p>
-  <p data-ed="56">The other 85% of industrial volume therefore pays unrelieved rates, largely because it sits outside the rules — which is a big part of the reason observed survey averages sit above the relieved model. But there is another effect at play.</p>
+  <p>So, exempt industries from paying taxes and levies and deindustrialisation solved? Perhaps. But it's a tradeoff: every exempted dollar/pound/euro must be recovered from consumers who do not qualify — meaning higher retail rates, which are even higher than unrelieved industrial — or via general taxation.</p>
+  <p>That transfer cost is the reason why eligibility for relief comes with narrow conditions. Electricity suppliers’ <a href="https://www.ofgem.gov.uk/sites/default/files/2026-03/RO_24-25_SY23_Annual_Report-20260327121336.pdf" target="_blank" rel="noopener">Renewables Obligation returns</a> put exempted supply at 12.0 TWh in 2024–25, about <b>15% of British industrial electricity</b>, across some <a href="https://hansard.parliament.uk/commons/2026-02-04/debates/cd4fcb2b-982e-4a88-a906-e77cd6bd1716/DraftEnergy-IntensiveIndustryElectricitySupportPaymentsAndLevy(Amendment)Regulations2026" target="_blank" rel="noopener">550 firms</a>.</p>
+  <p>How much of the remaining 85% could claim relief but does not? No register of eligible-but-unclaimed volume exists, but the evidence that does points to the rules rather than take-up. When the scheme was announced in February 2023, the government expected <a href="https://www.gov.uk/government/news/government-action-to-supercharge-competitiveness-in-key-british-industries-and-grow-economy" target="_blank" rel="noopener">about 300 businesses</a> to qualify; by early 2026 some 550 held certificates, nearly twice the design estimate. A scheme that overshoots its own eligibility estimate is obviously not short of applicants. The caveat is that firms are not volume: a handful of large eligible sites outside the scheme would matter more than many small ones inside it.</p>
+  <p>The other 85% of industrial volume therefore pays unrelieved rates, largely because it sits outside the rules — which is a big part of the reason observed survey averages sit above the relieved model. But there is another effect at play.</p>
 
-  <h2 data-ed="57"><span class="secno">5</span>Hedging</h2>
-  <p data-ed="58">The divergence between observed bills and my model occurs most prominently in crisis years. This can be explained by how power is purchased; firms tend to procure their electricity with a mix of longer-term (year-ahead and beyond) and shorter-term (spot, day-ahead) contracts to hedge out intra-yearly variability.</p>
-  <p data-ed="59">As a result, during the crisis — especially in 2021 and 2022 — firms were partly shielded on the way up and for a while paid below spot thanks to forward contracts signed earlier. However, when spot electricity prices normalised in 2023 and 2024, firms were left paying above it, because of the forward contracts signed in 2022 and 2023.</p>
-  <p data-ed="60">Any model priced at a single type of wholesale data series (e.g. day-ahead) will show large, sign-flipping errors in exactly those years.</p>
+  <h2 id="ch5"><span class="secno">5</span>Hedging</h2>
+  <p>The divergence between observed bills and my model occurs most prominently in crisis years. This can be explained by how power is purchased; firms tend to procure their electricity with a mix of longer-term (year-ahead and beyond) and shorter-term (spot, day-ahead) contracts to hedge out intra-yearly variability.</p>
+  <p>As a result, during the crisis — especially in 2021 and 2022 — firms were partly shielded on the way up and for a while paid below spot thanks to forward contracts signed earlier. However, when spot electricity prices normalised in 2023 and 2024, firms were left paying above it, because of the forward contracts signed in 2022 and 2023.</p>
+  <p>Any model priced at a single type of wholesale data series (e.g. day-ahead) will show large, sign-flipping errors in exactly those years.</p>
 
   <figure class="viz" id="fig6"></figure>
 
-  <p data-ed="61">Comparing the spot and year-ahead trajectories against the observed price reveals large, sign-flipping divergence in Britain — but not of the kind a year-ahead hedge produces. By 2025 the year-ahead line had fallen back to its pre-2021 range, while the observed price was still within 10% of its 2023 peak — two years after forward prices had normalised. A one-year hedge would not do that, suggesting that British firms signed fixed contracts for two or three years at 2022–23 pricing.</p>
-  <p data-ed="62">To test this, I re-priced the British stack at a blend of the last three wholesale vintages — a third each of the delivery year and the two before it — and weighted it to match the survey population: 85% unrelieved, 15% relieved, producing the purple line. For the medium consumer the result tracks the survey within about $10/MWh in every year from 2023 to 2025. For the large site it overshoots by $30–55/MWh, which suggests the largest buyers either locked in less of the 2022 peak or are more often relieved than the 15% average implies. Either way, the evidence points to British industry having bought forward near the top of the market and only now rolling off it.</p>
-  <p data-ed="63">Germany is a different story. The same blend overshoots the German averages in 2024–25 by $65–80/MWh even with full relief, so German firms did not carry 2022 prices into their later bills. The likely reasons are policy and procurement: in 2023 the government capped industrial bills with the <i>Strompreisbremse</i>, and the German band average is dominated by relieved, long-contracted baseload firms.</p>
-  <p data-ed="64">This detour explains why my modelled stacks look spikier than observed prices: each year is priced at a single contract vintage, while real bills average several. The exact mix of vintages is not public, so I decided to go with the single year vintage.</p>
-  <p data-ed="65">Now back to the main point — a user may be exempted from levies and taxes, and they may be well hedged too, but at the end of the day they will remain exposed to the price of wholesale power. And after applying exemptions, wholesale power becomes the most expensive part of the energy bill.</p>
+  <p>Comparing the spot and year-ahead trajectories against the observed price reveals large, sign-flipping divergence in Britain — but not of the kind a year-ahead hedge produces. By 2025 the year-ahead line had fallen back to its pre-2021 range, while the observed price was still within 10% of its 2023 peak — two years after forward prices had normalised. A one-year hedge would not do that, suggesting that British firms signed fixed contracts for two or three years at 2022–23 pricing.</p>
+  <p>To test this, I re-priced the British stack at a blend of the last three wholesale vintages — a third each of the delivery year and the two before it — and weighted it to match the survey population: 85% unrelieved, 15% relieved, producing the purple line. For the medium consumer the result tracks the survey within about $10/MWh in every year from 2023 to 2025. For the large site it overshoots by $30–55/MWh, which suggests the largest buyers either locked in less of the 2022 peak or are more often relieved than the 15% average implies. Either way, the evidence points to British industry having bought forward near the top of the market and only now rolling off it.</p>
+  <p>Germany is a different story. The same blend overshoots the German averages in 2024–25 by $65–80/MWh even with full relief, so German firms did not carry 2022 prices into their later bills. The likely reasons are policy and procurement: in 2023 the government capped industrial bills with the <i>Strompreisbremse</i>, and the German band average is dominated by relieved, long-contracted baseload firms.</p>
+  <p>This detour explains why my modelled stacks look spikier than observed prices: each year is priced at a single contract vintage, while real bills average several. The exact mix of vintages is not public, so I decided to go with the single year vintage.</p>
+  <p>Now back to the main point — a user may be exempted from levies and taxes, and they may be well hedged too, but at the end of the day they will remain exposed to the price of wholesale power. And after applying exemptions, wholesale power becomes the most expensive part of the energy bill.</p>
 
-  <h2 data-ed="66"><span class="secno">6</span>Electricity price setter</h2>
+  <h2 id="ch6"><span class="secno">6</span>Electricity price setter</h2>
 
-  <p data-ed="67">In liberalised markets, wholesale electricity is priced at the running cost of the last plant needed to meet demand. In Germany and the UK, that last plant will usually be a gas plant. This becomes evident when plotting the short-run marginal cost (SRMC) of gas-fired generation and historical day-ahead power prices.</p>
+  <p>In liberalised markets, wholesale electricity is priced at the running cost of the last plant needed to meet demand. In Germany and the UK, that last plant will usually be a gas plant. This becomes evident when plotting the short-run marginal cost (SRMC) of gas-fired generation and historical day-ahead power prices.</p>
 
   <figure class="viz" id="fig7"></figure>
 
-  <p data-ed="68">There are some differences between UK and German power systems. In Germany gas marginal cost is the <em>ceiling</em>, not the price, because hard coal and lignite set the margin through 2012–18 and renewables have begun to claim price-setting hours since 2023.</p>
-  <p data-ed="69">In the UK, day-ahead prices sat above the cost of a modelled gas plant through 2022: until 2020 likely because more expensive coal and older, less efficient gas turbines were setting the price. 2021 was a scarcity year: low wind, nuclear outages and a fire that cut the IFA interconnector to France pushed prices far above gas cost in the tightest hours. And 2022 was abnormal because the UK ended up exporting power to continental Europe as French nuclear output collapsed. Today, price is firmly set by combined cycle gas turbines (CCGT).</p>
-  <p data-ed="70">That marginal cost has two parts: the fuel, and the carbon allowance the plant must surrender for burning it. In Britain in 2025, carbon — the UK ETS price plus the £18/t Carbon Price Support — accounted for about $32 of a gas plant's roughly $112/MWh running cost,&nbsp;<b>some 28%</b>. The wholesale price is a gas-<i>and</i>-carbon price, where the second half of it is a policy choice.</p>
+  <p>There are some differences between UK and German power systems. In Germany gas marginal cost is the <em>ceiling</em>, not the price, because hard coal and lignite set the margin through 2012–18 and renewables have begun to claim price-setting hours since 2023.</p>
+  <p>In the UK, day-ahead prices sat above the cost of a modelled gas plant through 2022: until 2020 likely because more expensive coal and older, less efficient gas turbines were setting the price. 2021 was a scarcity year: low wind, nuclear outages and a fire that cut the IFA interconnector to France pushed prices far above gas cost in the tightest hours. And 2022 was abnormal because the UK ended up exporting power to continental Europe as French nuclear output collapsed. Today, price is firmly set by combined cycle gas turbines (CCGT).</p>
+  <p>That marginal cost has two parts: the fuel, and the carbon allowance the plant must surrender for burning it. In Britain in 2025, carbon — the UK ETS price plus the £18/t Carbon Price Support — accounted for about $32 of a gas plant's roughly $112/MWh running cost,&nbsp;<b>some 28%</b>. The wholesale price is a gas-<i>and</i>-carbon price, where the second half of it is a policy choice.</p>
 
-  <p data-ed="71">In China the picture is more complicated; historically power prices were set by the state, but over the past decade the Chinese electricity sector has undergone a number of trials and reforms that aim to make it more market-based. Still, the market continues to be anchored to a regulated band around the marginal cost of coal generation, which is around $55 - 60/MWh.</p>
-  <p data-ed="72">Note that British 2025 wholesale price of $106–109/MWh is still about 75–100% higher than the Chinese price. Even with tax, levy and network relief, wholesale electricity costs are simply much higher in Britain than in China.</p>
+  <p>In China the picture is more complicated; historically power prices were set by the state, but over the past decade the Chinese electricity sector has undergone a number of trials and reforms that aim to make it more market-based. Still, the market continues to be anchored to a regulated band around the marginal cost of coal generation, which is around $55 - 60/MWh.</p>
+  <p>Note that British 2025 wholesale price of $106–109/MWh is still about 75–100% higher than the Chinese price. Even with tax, levy and network relief, wholesale electricity costs are simply much higher in Britain than in China.</p>
 
-  <h2 data-ed="73"><span class="secno">7</span>Reducing the price of gas</h2>
-  <p data-ed="74">The two main issues causing electricity prices in the UK and Germany to be higher than in China boil down to:</p>
-  <p data-ed="75">1) Policy costs brought on by a myriad of levies, taxes and tariffs.<br>2) Expensive, imported gas, with the carbon price layered on top, setting the wholesale price.</p>
-  <p data-ed="76">For 1) levy and tax exemptions are a tried and tested solution, even if they only shift the burden to another part of the economy. Still, a valid avenue if you believe that electricity prices are a major driver of competitiveness. But 2) remains an unsolved problem.</p>
-  <p data-ed="77">A number of online thinkers have put forward the following solutions:</p>
-  <p data-ed="78">A) Lean into domestic O&amp;G<br>B) Stop building renewables, which disproportionately increase the network-charge part of the bill.<br>C) Build more nuclear</p>
+  <h2 id="ch7"><span class="secno">7</span>Reducing the price of gas</h2>
+  <p>The two main issues causing electricity prices in the UK and Germany to be higher than in China boil down to:</p>
+  <p>1) Policy costs brought on by a myriad of levies, taxes and tariffs.<br>2) Expensive, imported gas, with the carbon price layered on top, setting the wholesale price.</p>
+  <p>For 1) levy and tax exemptions are a tried and tested solution, even if they only shift the burden to another part of the economy. Still, a valid avenue if you believe that electricity prices are a major driver of competitiveness. But 2) remains an unsolved problem.</p>
+  <p>A number of online thinkers have put forward the following solutions:</p>
+  <p>A) Lean into domestic O&amp;G<br>B) Stop building renewables, which disproportionately increase the network-charge part of the bill.<br>C) Build more nuclear</p>
 
-  <p data-ed="79">I've <a href="https://gnievchenko.substack.com/p/north-sea-to-drill-or-not-to-drill" target="_blank" rel="noopener">previously written</a> on the benefits of sourcing more gas domestically. TL;DR the main benefits are increased receipts for local tax authorities, jobs, along with emissions reductions as local gas displaces carbon intensive LNG imports. But since even domestic gas clears at the global/regional gas market price, the price of gas is unlikely to be affected.</p>
+  <p>I've <a href="https://gnievchenko.substack.com/p/north-sea-to-drill-or-not-to-drill" target="_blank" rel="noopener">previously written</a> on the benefits of sourcing more gas domestically. TL;DR the main benefits are increased receipts for local tax authorities, jobs, along with emissions reductions as local gas displaces carbon intensive LNG imports. But since even domestic gas clears at the global/regional gas market price, the price of gas is unlikely to be affected.</p>
 
-  <p data-ed="80">Still, there is absolutely no good reason why domestic economically viable reserves <i>should</i> not be exploited. In my experience the only downside is moaning from pretend environmentalists who will go through Olympics-level gymnastics to avoid acknowledging that low-carbon intensity European gas would displace carbon intensive LNG imports while downplaying jobs and tax receipts. It's madness.&nbsp;Burnham’s Jackdaw decision was the correct choice, and the environmentalist in me hopes UK government approves further drilling.&nbsp;</p>
+  <p>Still, there is absolutely no good reason why domestic economically viable reserves <i>should</i> not be exploited. In my experience the only downside is moaning from pretend environmentalists who will go through Olympics-level gymnastics to avoid acknowledging that low-carbon intensity European gas would displace carbon intensive LNG imports while downplaying jobs and tax receipts. It's madness.&nbsp;Burnham’s Jackdaw decision was the correct choice, and the environmentalist in me hopes UK government approves further drilling.&nbsp;</p>
 
-  <p data-ed="81">With the price of gas at the mercy of global supply-demand equilibrium, perhaps best to look elsewhere for deflationary energy levers.</p>
+  <p>With the price of gas at the mercy of global supply-demand equilibrium, perhaps best to look elsewhere for deflationary energy levers.</p>
 
-  <h2 data-ed="82"><span class="secno">8</span>Replacing gas</h2>
+  <h2 id="ch8"><span class="secno">8</span>Replacing gas</h2>
 
-  <p data-ed="83">I know many do not like using levelised cost of energy (LCOE) as a cost comparison metric, and I recognise its main deficiency in that it does not account for the system costs of integrating intermittent generation. Still, I think it is a useful first-order approximation of the cost of generating a MWh from a new asset. Rather than modelling LCOEs myself, I have taken estimates from governmental agencies such as DESNZ or Fraunhofer ISE.&nbsp;</p>
-  <p data-ed="84">Across both the UK and Germany, wind (offshore and onshore) and solar tend to be substantially cheaper than running existing gas plants. Some estimates even put them at the same level as building a new coal plant in China!</p>
-  <p data-ed="85">For Germany, a nuclear restart would also appear to be a highly compelling option according to the Radiant Energy Group. However, there are some important caveats to this pathway.<span class="fn"><button type="button" class="fn-ref" aria-expanded="false" aria-label="Footnote 1">1</button><span class="fn-pop" role="note">As they have already been fully decommissioned, the plants would need to be re-certified under new, more stringent EU regulations. Further, German utilities stopped recruiting trainees once the phase-out was re-confirmed in 2011. As a result, returning the plants to operation would require importing foreign labour. To be clear, I don't believe these are insurmountable challenges, but they require a lot of political capital, and to my understanding of German political economy, no party is serious about making that sacrifice. There was a surge in popular support in 2022 following the Russian invasion of Ukraine, but that opportunity was not seized and support has been fading since.</span></span></p>
+  <p>I know many do not like using levelised cost of energy (LCOE) as a cost comparison metric, and I recognise its main deficiency in that it does not account for the system costs of integrating intermittent generation. Still, I think it is a useful first-order approximation of the cost of generating a MWh from a new asset. Rather than modelling LCOEs myself, I have taken estimates from governmental agencies such as DESNZ or Fraunhofer ISE.&nbsp;</p>
+  <p>Across both the UK and Germany, wind (offshore and onshore) and solar tend to be substantially cheaper than running existing gas plants. Some estimates even put them at the same level as building a new coal plant in China!</p>
+  <p>For Germany, a nuclear restart would also appear to be a highly compelling option according to the Radiant Energy Group. However, there are some important caveats to this pathway.<span class="fn"><button type="button" class="fn-ref" aria-expanded="false" aria-label="Footnote 1">1</button><span class="fn-pop" role="note">As they have already been fully decommissioned, the plants would need to be re-certified under new, more stringent EU regulations. Further, German utilities stopped recruiting trainees once the phase-out was re-confirmed in 2011. As a result, returning the plants to operation would require importing foreign labour. To be clear, I don't believe these are insurmountable challenges, but they require a lot of political capital, and to my understanding of German political economy, no party is serious about making that sacrifice. There was a surge in popular support in 2022 following the Russian invasion of Ukraine, but that opportunity was not seized and support has been fading since.</span></span></p>
 
   <figure class="viz" id="fig8"></figure>
 
-  <p data-ed="86">Of course the issue with renewables is that they are <i>intermittent</i>. Pairing them with lithium-ion batteries solves that, but at a price: a four-hour battery currently costs around $80 for every MWh it discharges (<a href="https://about.bnef.com/insights/clean-energy/battery-storage-costs-hit-record-lows-as-costs-of-other-clean-power-technologies-increased-bloombergnef/" target="_blank" rel="noopener">BloombergNEF, 2025</a>). However, batteries will usually be sized smaller than the renewable plant they are paired with. A useful approximation is that such a battery would add about $40/MWh to the cost of the paired asset. Taking midpoint prices for the UK and Germany, renewables with storage still work out cheaper than, or on par with, running existing gas (German offshore wind, at about $128/MWh, comes in just above), but with the benefit of not being exposed to gas volatility. They are vastly cheaper than building new gas, or even new nuclear.</p>
-  <p data-ed="87">So renewables remain incredibly useful as <i>fuel-saving</i> technologies. It would be preferable to have them setting the power price for more hours during the year, rather than gas. The risk of betting on more renewable buildout raising wholesale prices is slim, while the potential cost reduction from fuel saving and gas hedging is significant.</p>
-  <p data-ed="88">Critics of this approach will bring up the rising network and balancing charges that renewables bring. Indeed, network charges have roughly quadrupled for large industry since 2010 (albeit from a low base) and risen for medium industry, in both the UK and Germany. Ben James has built a fantastic UK&nbsp;<a href="https://www.electricitybills.uk/data/2030-forecast.html" target="_blank" rel="noopener">forecast to 2030</a> showing we can expect them to keep rising: transmission and balancing charges both roughly double. His forecast is for household bills, but transmission and balancing charges are levied on industrial users too, so the direction is likely to apply to industry as well.</p>
+  <p>Of course the issue with renewables is that they are <i>intermittent</i>. Pairing them with lithium-ion batteries solves that, but at a price: a four-hour battery currently costs around $80 for every MWh it discharges (<a href="https://about.bnef.com/insights/clean-energy/battery-storage-costs-hit-record-lows-as-costs-of-other-clean-power-technologies-increased-bloombergnef/" target="_blank" rel="noopener">BloombergNEF, 2025</a>). However, batteries will usually be sized smaller than the renewable plant they are paired with. A useful approximation is that such a battery would add about $40/MWh to the cost of the paired asset. Taking midpoint prices for the UK and Germany, renewables with storage still work out cheaper than, or on par with, running existing gas (German offshore wind, at about $128/MWh, comes in just above), but with the benefit of not being exposed to gas volatility. They are vastly cheaper than building new gas, or even new nuclear.</p>
+  <p>So renewables remain incredibly useful as <i>fuel-saving</i> technologies. It would be preferable to have them setting the power price for more hours during the year, rather than gas. The risk of betting on more renewable buildout raising wholesale prices is slim, while the potential cost reduction from fuel saving and gas hedging is significant.</p>
+  <p>Critics of this approach will bring up the rising network and balancing charges that renewables bring. Indeed, network charges have roughly quadrupled for large industry since 2010 (albeit from a low base) and risen for medium industry, in both the UK and Germany. Ben James has built a fantastic UK&nbsp;<a href="https://www.electricitybills.uk/data/2030-forecast.html" target="_blank" rel="noopener">forecast to 2030</a> showing we can expect them to keep rising: transmission and balancing charges both roughly double. His forecast is for household bills, but transmission and balancing charges are levied on industrial users too, so the direction is likely to apply to industry as well.</p>
 
   <figure class="viz" id="fig15"></figure>
 
-  <p data-ed="89">However, while the British large user’s grid bill has nearly quadrupled in real terms since 2010, most of the increase is <i>not</i> the cost of wires. Two-thirds of it is Balancing Services Use of System (BSUoS), the charge that pays the system operator to balance the grid, and the fastest-growing part of balancing is paying around the grid’s bottlenecks. When the lines between Scotland and England are full, the National Energy System Operator (NESO) pays Scottish wind farms to switch off and gas plants further south to switch on. Those thermal constraint costs went from £446m in 2018/19 to £1,709m in 2024/25 — <b>nearly two-thirds of all balancing costs</b> — while the share of British wind output paid to switch off rose from 5% to 13% (<a href="https://www.neso.energy/document/362571/download" target="_blank" rel="noopener">NESO Annual Balancing Costs Report 2025</a>).</p>
-  <p data-ed="90">In other words, Britain is not paying for too much grid; it is paying for too little. Every wind farm turned down behind a congested boundary is paid for twice: once to stop generating, and again for the gas plant that replaces its output. Build the transmission and that bill shrinks. NESO projects balancing costs peaking at around £8bn a year by 2030 unless network upgrades are accelerated, and puts the saving from bringing those projects forward at up to £4bn a year.</p>
-  <p data-ed="91">While new wires won't be free, and will have to be paid for via transmission charges too, the alternative is paying ever more not to use power that has already been built. A grid built to carry Britain’s renewables <b>would leave network charges lower than the ones it is heading for without one</b>. Building more renewables together with the grid to integrate them still works out cheaper than running existing gas plants more. That's why European countries should be <i>fuel-saving-maxxing</i>.</p>
-  <p data-ed="92">If there's one mistake that's been made with this approach, it's that the grid was not expanded earlier, when money was cheap. Grid investment is paid back through charges over decades, so the return the regulator allows on it matters almost as much as what the steel and cable cost. For 2021–26, Ofgem allowed transmission owners a real return on capital of 2.7–2.9%; for 2026–31 it allows 4.4–4.7% (<a href="https://www.oxera.com/insights/agenda/articles/riio-2-final-determinations-how-final/" target="_blank" rel="noopener">Oxera on RIIO-2</a>; <a href="https://www.oxera.com/insights/agenda/articles/riio-3-final-determinations/" target="_blank" rel="noopener">Oxera on RIIO-3</a>). Over the 45 years a new line is paid off, that alone makes every pound of grid built today about a third dearer to consumers than the same pound built five years ago.</p>
-  <p data-ed="93">Grid build can also be complemented by long-duration energy storage (LDES), which soaks up wind that would otherwise be switched off. Here, the UK is in fact a global leader, having launched the first ever cap-and-floor support scheme for these technologies: in June 2026 Ofgem shortlisted 16 projects totalling 7.6 GW, each storing 8 to 22 hours of output (<a href="https://www.energy-storage.news/uks-ofgem-goes-big-on-ldes-cap-and-floor-window-1-18-hour-lithium-ion-among-winners/" target="_blank" rel="noopener">Energy-Storage.news</a>).</p>
+  <p>However, while the British large user’s grid bill has nearly quadrupled in real terms since 2010, most of the increase is <i>not</i> the cost of wires. Two-thirds of it is Balancing Services Use of System (BSUoS), the charge that pays the system operator to balance the grid, and the fastest-growing part of balancing is paying around the grid’s bottlenecks. When the lines between Scotland and England are full, the National Energy System Operator (NESO) pays Scottish wind farms to switch off and gas plants further south to switch on. Those thermal constraint costs went from £446m in 2018/19 to £1,709m in 2024/25 — <b>nearly two-thirds of all balancing costs</b> — while the share of British wind output paid to switch off rose from 5% to 13% (<a href="https://www.neso.energy/document/362571/download" target="_blank" rel="noopener">NESO Annual Balancing Costs Report 2025</a>).</p>
+  <p>In other words, Britain is not paying for too much grid; it is paying for too little. Every wind farm turned down behind a congested boundary is paid for twice: once to stop generating, and again for the gas plant that replaces its output. Build the transmission and that bill shrinks. NESO projects balancing costs peaking at around £8bn a year by 2030 unless network upgrades are accelerated, and puts the saving from bringing those projects forward at up to £4bn a year.</p>
+  <p>While new wires won't be free, and will have to be paid for via transmission charges too, the alternative is paying ever more not to use power that has already been built. A grid built to carry Britain’s renewables <b>would leave network charges lower than the ones it is heading for without one</b>. Building more renewables together with the grid to integrate them still works out cheaper than running existing gas plants more. That's why European countries should be <i>fuel-saving-maxxing</i>.</p>
+  <p>If there's one mistake that's been made with this approach, it's that the grid was not expanded earlier, when money was cheap. Grid investment is paid back through charges over decades, so the return the regulator allows on it matters almost as much as what the steel and cable cost. For 2021–26, Ofgem allowed transmission owners a real return on capital of 2.7–2.9%; for 2026–31 it allows 4.4–4.7% (<a href="https://www.oxera.com/insights/agenda/articles/riio-2-final-determinations-how-final/" target="_blank" rel="noopener">Oxera on RIIO-2</a>; <a href="https://www.oxera.com/insights/agenda/articles/riio-3-final-determinations/" target="_blank" rel="noopener">Oxera on RIIO-3</a>). Over the 45 years a new line is paid off, that alone makes every pound of grid built today about a third dearer to consumers than the same pound built five years ago.</p>
+  <p>Grid build can also be complemented by long-duration energy storage (LDES), which soaks up wind that would otherwise be switched off. Here, the UK is in fact a global leader, having launched the first ever cap-and-floor support scheme for these technologies: in June 2026 Ofgem shortlisted 16 projects totalling 7.6 GW, each storing 8 to 22 hours of output (<a href="https://www.energy-storage.news/uks-ofgem-goes-big-on-ldes-cap-and-floor-window-1-18-hour-lithium-ion-among-winners/" target="_blank" rel="noopener">Energy-Storage.news</a>).</p>
 
   <figure class="viz" id="fig16"></figure>
 
-  <p data-ed="94">Yet some will still contend that nuclear is the better alternative: it requires vastly less grid buildout and no storage, providing <i>firm</i> capacity as needed. But my earlier LCOE comparison suggests that new nuclear comes in at more than double the cost of renewables in Britain and Germany. The argument goes that with a focused campaign of building multiple reactors, and deregulation, nuclear costs can be halved.</p>
+  <p>Yet some will still contend that nuclear is the better alternative: it requires vastly less grid buildout and no storage, providing <i>firm</i> capacity as needed. But my earlier LCOE comparison suggests that new nuclear comes in at more than double the cost of renewables in Britain and Germany. The argument goes that with a focused campaign of building multiple reactors, and deregulation, nuclear costs can be halved.</p>
 
 
 
@@ -729,24 +371,24 @@
 
 
 
-  <h2 data-ed="95"><span class="secno">9</span>Nuclearmaxing</h2>
+  <h2 id="ch9"><span class="secno">9</span>Nuclearmaxing</h2>
 
-  <p data-ed="96">The idea that nuclear can be cheap comes from modelled benchmarks. In theory, modelled prices for reactors in some Western countries - France and the US - are below the SRMC of running the existing gas fleet across the UK and Germany.</p>
+  <p>The idea that nuclear can be cheap comes from modelled benchmarks. In theory, modelled prices for reactors in some Western countries - France and the US - are below the SRMC of running the existing gas fleet across the UK and Germany.</p>
 
   <figure class="viz" id="fig9"></figure>
 
-  <p data-ed="97">But the modelled costs do not align with observed project costs. The benchmark for France's EPR stands at $91/MWh, but the actual cost for Flamanville 3 runs above $200/MWh. A similar divergence is observed for newly-built US reactors. Britain’s Hinkley Point C is contracted at $170/MWh in 2025 prices (<a href="https://www.nao.org.uk/reports/sizewell-c/" target="_blank" rel="noopener">NAO</a>). While that is a contract price and not the cost, the build cost has roughly doubled, from £18bn at the 2016 investment decision to about £35bn in 2015 prices (<a href="https://www.constructionenquirer.com/2026/02/22/me-delay-pushes-hinkley-c-first-reactor-start-up-back-a-year/" target="_blank" rel="noopener">EDF guidance, Feb 2026</a>).</p>
-  <p data-ed="98">Are the benchmarks wrong, then? South Koreans are frequently mentioned as having 'cracked' nuclear through serial construction commitments. Our estimate of the cost of Barakah in the UAE, which they built ($82–94/MWh), sits above South Korea’s own benchmark but in line with the modelled costs for France and the US.</p>
-  <p data-ed="99">Yet it still took Koreans 8.7 years to complete Barakah, instead of planned five. Most of that overrun was not construction: the plant was finished within about a year of schedule, and the last three years went on licensing and readying a first-time operator. That is a lesson in its own right. Schedules slip on things other than pouring concrete — regulatory approval, operator readiness, supply-chain qualification.</p>
-  <p data-ed="100">China's nuclear adventure began with reactors taking twice as long to complete as initially envisaged. But after standardising reactor design with homegrown Hualong One and gaining regulatory and construction experience, several projects later the most recent reactors are being delivered on schedule, in around six years.</p>
-  <p data-ed="101">Still, even China, with its centralised model of governance lending regulatory support, and 30 years of roiding the muscle of its engineering state, had to spend 10 years paying for the learning curve.</p>
+  <p>But the modelled costs do not align with observed project costs. The benchmark for France's EPR stands at $91/MWh, but the actual cost for Flamanville 3 runs above $200/MWh. A similar divergence is observed for newly-built US reactors. Britain’s Hinkley Point C is contracted at $170/MWh in 2025 prices (<a href="https://www.nao.org.uk/reports/sizewell-c/" target="_blank" rel="noopener">NAO</a>). While that is a contract price and not the cost, the build cost has roughly doubled, from £18bn at the 2016 investment decision to about £35bn in 2015 prices (<a href="https://www.constructionenquirer.com/2026/02/22/me-delay-pushes-hinkley-c-first-reactor-start-up-back-a-year/" target="_blank" rel="noopener">EDF guidance, Feb 2026</a>).</p>
+  <p>Are the benchmarks wrong, then? South Koreans are frequently mentioned as having 'cracked' nuclear through serial construction commitments. Our estimate of the cost of Barakah in the UAE, which they built ($82–94/MWh), sits above South Korea’s own benchmark but in line with the modelled costs for France and the US.</p>
+  <p>Yet it still took Koreans 8.7 years to complete Barakah, instead of planned five. Most of that overrun was not construction: the plant was finished within about a year of schedule, and the last three years went on licensing and readying a first-time operator. That is a lesson in its own right. Schedules slip on things other than pouring concrete — regulatory approval, operator readiness, supply-chain qualification.</p>
+  <p>China's nuclear adventure began with reactors taking twice as long to complete as initially envisaged. But after standardising reactor design with homegrown Hualong One and gaining regulatory and construction experience, several projects later the most recent reactors are being delivered on schedule, in around six years.</p>
+  <p>Still, even China, with its centralised model of governance lending regulatory support, and 30 years of roiding the muscle of its engineering state, had to spend 10 years paying for the learning curve.</p>
 
   <figure class="viz" id="fig14"></figure>
 
-  <p data-ed="102">There are two implications here. First, there is good evidence that nuclear costs and building timelines can be brought close to the benchmarks. But it requires a concerted and sustained effort, one that begins with removal of regulatory hurdles, and continues through a pipeline that gives supply chains and workforce certainty for&nbsp;<i>decades </i>moving forward. The smallest U-turn, or downsizing by a following government would wreck this strategy entirely.</p>
-  <p data-ed="103">Yet even with those measures in place, which are no small feat, and under very generous assumptions, it would take at a minimum 10 years for the first wave of serial reactors to provide power.</p>
-  <p data-ed="104">The second implication is that such a buildout lowers the wholesale price only in the hours when reactors, rather than gas, set it. A small programme displaces gas in few hours and barely moves the average price; the price falls meaningfully only once there are enough reactors that gas sets it in far fewer hours. Further, since new nuclear is bought on contracts for difference, a buildout at too high a strike moves money from the wholesale line to the levy line rather than removing it. This opens the question of how much nuclear should be built to become the marginal price setter, which is a moving target considering a constantly evolving energy system.</p>
-  <p data-ed="105">In the context of immediate-effect industrial policy and lowering current bills, nuclear is ill-suited to deliver. That is not the same as saying it should not be pursued, but the future is discounted the further away it is. Too many proposals of nuclearmaxing do not offer a vision of how the energy system would evolve as the reactors are being built, which leaves the case incomplete.</p>
+  <p>There are two implications here. First, there is good evidence that nuclear costs and building timelines can be brought close to the benchmarks. But it requires a concerted and sustained effort, one that begins with removal of regulatory hurdles, and continues through a pipeline that gives supply chains and workforce certainty for&nbsp;<i>decades </i>moving forward. The smallest U-turn, or downsizing by a following government would wreck this strategy entirely.</p>
+  <p>Yet even with those measures in place, which are no small feat, and under very generous assumptions, it would take at a minimum 10 years for the first wave of serial reactors to provide power.</p>
+  <p>The second implication is that such a buildout lowers the wholesale price only in the hours when reactors, rather than gas, set it. A small programme displaces gas in few hours and barely moves the average price; the price falls meaningfully only once there are enough reactors that gas sets it in far fewer hours. Further, since new nuclear is bought on contracts for difference, a buildout at too high a strike moves money from the wholesale line to the levy line rather than removing it. This opens the question of how much nuclear should be built to become the marginal price setter, which is a moving target considering a constantly evolving energy system.</p>
+  <p>In the context of immediate-effect industrial policy and lowering current bills, nuclear is ill-suited to deliver. That is not the same as saying it should not be pursued, but the future is discounted the further away it is. Too many proposals of nuclearmaxing do not offer a vision of how the energy system would evolve as the reactors are being built, which leaves the case incomplete.</p>
 
 
 
@@ -755,213 +397,46 @@
 
 
 
-  <h2 data-ed="106"><span class="secno">10</span>Lessons learned</h2>
+  <h2 id="ch10"><span class="secno">10</span>Lessons learned</h2>
 
-  <p data-ed="107"><b>Policy relief means that eligible firms pay no more than before.</b> In both countries, a site with full relief paid no more in 2019 than in 2010: in Britain, falling wholesale prices absorbed the levies until relief arrived in 2018; Germany capped the EEG for its heaviest users throughout. The firms without relief did pay for them. For the 85% of British industrial volume outside the scheme, the levy line rose from $20 to $77/MWh between 2010 and 2020.</p>
+  <p><b>Policy relief means that eligible firms pay no more than before.</b> In both countries, a site with full relief paid no more in 2019 than in 2010: in Britain, falling wholesale prices absorbed the levies until relief arrived in 2018; Germany capped the EEG for its heaviest users throughout. The firms without relief did pay for them. For the 85% of British industrial volume outside the scheme, the levy line rose from $20 to $77/MWh between 2010 and 2020.</p>
 
-  <p data-ed="108"><b>Since 2020 the problem is wholesale, which is gas plus carbon.</b> Covid and then Russia's invasion of Ukraine sent gas, and with it power prices, soaring. German energy-intensive output held flat until 2019 and has fallen by a sixth since. Britain's primary production of steel, aluminium, cement and paper was already shrinking before the crisis, and is down 46% since 2010, even as manufacturing overall grew by a fifth.</p>
+  <p><b>Since 2020 the problem is wholesale, which is gas plus carbon.</b> Covid and then Russia's invasion of Ukraine sent gas, and with it power prices, soaring. German energy-intensive output held flat until 2019 and has fallen by a sixth since. Britain's primary production of steel, aluminium, cement and paper was already shrinking before the crisis, and is down 46% since 2010, even as manufacturing overall grew by a fifth.</p>
 
-  <p data-ed="109"><b>China priced itself in.</b> Its industrial tariff fell from $145 to $87/MWh between 2012 and 2025. Most of that is a decade of frozen tariffs in yuan while Chinese inflation stayed low. The weaker yuan accounts for about 30% of that decline. Network charges, by contrast, explain little of the gap with Britain or Germany.</p>
+  <p><b>China priced itself in.</b> Its industrial tariff fell from $145 to $87/MWh between 2012 and 2025. Most of that is a decade of frozen tariffs in yuan while Chinese inflation stayed low. The weaker yuan accounts for about 30% of that decline. Network charges, by contrast, explain little of the gap with Britain or Germany.</p>
 
-  <p data-ed="110"><b>Relief works, but it is a transfer.</b> Moving the EEG onto the federal budget kept German industrial prices close to where they were a decade ago. British relief now goes at least as deep, but covers only about 15% of industrial volume, mostly because firms fall outside the scope. British buyers also locked in forward contracts near the top of the 2022 market and are only now rolling off them.&nbsp; Either way, every exempted pound is paid by someone else: other consumers or the taxpayer.</p>
+  <p><b>Relief works, but it is a transfer.</b> Moving the EEG onto the federal budget kept German industrial prices close to where they were a decade ago. British relief now goes at least as deep, but covers only about 15% of industrial volume, mostly because firms fall outside the scope. British buyers also locked in forward contracts near the top of the 2022 market and are only now rolling off them.&nbsp; Either way, every exempted pound is paid by someone else: other consumers or the taxpayer.</p>
 
-  <p data-ed="111"><b>North Sea gas is a fiscal measure.</b> Domestic gas clears at the regional price, so drilling will not move bills. Still, the tax receipts and jobs alone justify it, and gas produced at home displaces more carbon-intensive LNG imports. Even if not an energy-price policy, it is a no-brainer.</p>
+  <p><b>North Sea gas is a fiscal measure.</b> Domestic gas clears at the regional price, so drilling will not move bills. Still, the tax receipts and jobs alone justify it, and gas produced at home displaces more carbon-intensive LNG imports. Even if not an energy-price policy, it is a no-brainer.</p>
 
-  <p data-ed="112"><b>Renewables are the cheapest way to burn less gas.</b> New wind and solar cost less per MWh than running existing gas plants, and with four-hour storage they are still level with it, without the exposure to gas prices. Their limit is the grid: constraint payments are now nearly two-thirds of Britain's balancing bill.</p>
+  <p><b>Renewables are the cheapest way to burn less gas.</b> New wind and solar cost less per MWh than running existing gas plants, and with four-hour storage they are still level with it, without the exposure to gas prices. Their limit is the grid: constraint payments are now nearly two-thirds of Britain's balancing bill.</p>
 
-  <p data-ed="113"><b>Nuclear is a long-term bet, not an answer for this decade.</b> Serial construction might bring costs close to the benchmarks, as China and Korea show, but even with sustained political commitment the first wave of new reactors would take at least ten years to deliver power.</p>
+  <p><b>Nuclear is a long-term bet, not an answer for this decade.</b> Serial construction might bring costs close to the benchmarks, as China and Korea show, but even with sustained political commitment the first wave of new reactors would take at least ten years to deliver power.</p>
+  <p>Mistakes have been made, and should be acknowledged. While Chinese electricity was getting cheaper, both countries loaded the cost of their renewables rollout onto electricity bills rather than general taxation. Germany has since moved it; Britain has exempted only a narrow group. Germany's nuclear phase-out was a spectacular shot in the foot. Another critical mistake was waiting for the grid to fill up with renewables before taking grid build seriously. That has become a double whammy as interest rates rose: the real return Ofgem allows transmission owners on their capital went from under 3% to around 4.5%, making every pound of grid built today about a third dearer than five years ago.</p>
 
-  <h3 data-ed="114">What can be done?</h3>
+  <h3>What else can be done?</h3>
 
-  <p data-ed="115">I don't want to sound like a doomer, but frankly, I believe the current system is doing nearly the best it can with the cards it has been dealt. Both the German and British governments turn out to be at least partly staffed by competent policy wonks.</p>
+  <p>I don't want to sound like a doomer, but frankly, I believe the current system is doing nearly the best it can with the cards it has been dealt. Both the German and British governments turn out to be at least partly staffed by competent policy wonks. It is just a fact of the matter that Europe is not endowed with cheap gas like the US, nor can it burn coal as cheaply as China. Nevertheless, there are a few tweaks that could improve on the current situation:</p>
 
-  <p data-ed="116">Mistakes have been made, though. While Chinese electricity was getting cheaper, both countries loaded the cost of their renewables rollout onto electricity bills rather than general taxation. Germany has since moved it; Britain has exempted only a narrow group. Germany's nuclear phase-out was a spectacular shot in the foot.</p>
+  <p><b>Focus on delivering grid upgrades.</b>&nbsp;That the grid was not reinforced when it should have been is water under the bridge now. The only thing to do is suck it up and invest without further delay. I would even throw more resources at making sure they get built on time.</p>
 
-  <p data-ed="117"><b>Focus on the grid.&nbsp;</b>In my view the biggest mistake was waiting for the grid to fill up with renewables before taking grid build seriously. That has become a double whammy as interest rates rose: the real return Ofgem allows transmission owners on their capital went from under 3% to around 4.5%, making every pound of grid built today about a third dearer than five years ago. That is water under the bridge now, and UK and German grids still need reinforcement. The only thing to do is suck it up and invest without further delay. I would even throw more resources at making sure they get built on time.</p>
+  <p><b>Revisit zonal pricing.</b> Britain rejected it in July 2025, and Germany refused to split its bidding zone in October 2025; both chose to fix congestion through grid build alone. A price that varies by location would tell new demand and generation where the grid has room, and steer them away from where it does not. Both governments should force the issue back onto the table.</p>
 
-  <p data-ed="118"><b>Revisit zonal pricing.</b> Britain rejected it in July 2025, and Germany refused to split its bidding zone in October 2025; both chose to fix congestion through grid build alone. A price that varies by location would tell new demand and generation where the grid has room, and steer them away from where it does not. Both governments should force the issue back onto the table.</p>
+  <p><b>Widen relief rather than deepen it.</b> Depth is already close to its maximum; the 85% of industrial volume in the UK outside the rules is where relief could still make a difference, at a known cost to everyone else.</p>
 
-  <p data-ed="119"><b>Widen relief rather than deepen it.</b> Depth is already close to its maximum; the 85% of industrial volume in the UK outside the rules is where relief could still make a difference, at a known cost to everyone else.</p>
+  <p><b>Cut carbon cost.</b> Scrapping UK carbon pricing would take about £24/MWh, some 28%, off the running cost of a gas plant, translating into a similar cut to wholesale price in most hours. But the EU now charges its carbon price at the border on imported steel, aluminium, cement, fertiliser and electricity. If Britain went it alone, its exporters of those goods would pay that charge to the EU instead of to the Treasury: some competitiveness gained, but the tax revenue handed to its largest trading partner. The better route is the one already under negotiation, linking the UK and EU carbon markets so British exports are exempt from the border charge. But there is something the UK could do unilaterally: scrapping the £18 Carbon Price Support would take about £7/MWh off a gas plant’s running cost. Modest, but the only carbon cut that costs nothing at the border. It should do so tomorrow.</p>
 
-  <p data-ed="120"><b>Cut carbon cost.</b> Scrapping UK carbon pricing would take about £24/MWh, some 28%, off the running cost of a gas plant, translating into a similar cut to wholesale price in most hours. But the EU now charges its carbon price at the border on imported steel, aluminium, cement, fertiliser and electricity. If Britain went it alone, its exporters of those goods would pay that charge to the EU instead of to the Treasury: some competitiveness gained, but the tax revenue handed to its largest trading partner. The better route is the one already under negotiation, linking the UK and EU carbon markets so British exports are exempt from the border charge. But there is something the UK could do unilaterally: scrapping the £18 Carbon Price Support would take about £7/MWh off a gas plant’s running cost. Modest, but the only carbon cut that costs nothing at the border. It should do so tomorrow.</p>
-
-  <p data-ed="121"><b>Finally, two more general reflections. </b>First, having gone through this exercise I am not convinced that high electricity prices are the boogeyman many make them out to be. Outside primary production (steelmaking, smelting, clinker), British manufacturing and even its energy-intensive industries remained remarkably resilient on a value-added basis, despite paying the highest electricity prices of the three. Perhaps overindexing on electricity misses the real story of decline in other factors, namely capital, labour, tax and governance.</p>
-  <p data-ed="122">Second, I suspect there are more overarching measures that would do more than any electricity-focused policy to regain competitiveness. One is lowering the cost of capital. Both German and British yields have risen sharply since Covid. Whether you are nuclear, grid or renewablemaxing, the investment needed comes mostly in the form of capex, so state guarantees, public lenders such as the National Wealth Fund or KfW, and contracts that de-risk revenues deserve as much attention as any tariff relief. Another one is permitting, reliance on subcontractors and an obsession with catering to any objection. As we are finding out, it is impossible to continue to flourish as a modern industrial powerhouse on the back of fish discos and bat tunnels. I've worked in energy my entire career, but my suspicion is that the real problems run deeper.</p>
+  <p><b>Finally, two more general reflections. </b>First, having gone through this exercise I am not convinced that high electricity prices are the boogeyman many make them out to be. Outside primary production (steelmaking, smelting, clinker), British manufacturing and even its energy-intensive industries remained remarkably resilient on a value-added basis, despite paying the highest electricity prices of the three. Perhaps overindexing on electricity misses the real story of decline in other factors, namely capital, labour, tax and governance.</p>
+  <p>Second, I suspect there are more overarching measures that would do more than any electricity-focused policy to regain competitiveness. One is lowering the cost of capital. Both German and British yields have risen sharply since Covid. Whether you are nuclear, grid or renewablemaxing, the investment needed comes mostly in the form of capex, so state guarantees, public lenders such as the National Wealth Fund or KfW, and contracts that de-risk revenues deserve as much attention as any tariff relief. Another one is permitting, reliance on subcontractors and an obsession with catering to any objection. As we are finding out, it is impossible to continue to flourish as a modern industrial powerhouse on the back of fish discos and bat tunnels. I've worked in energy my entire career, but my suspicion is that the real problems run deeper.</p>
+  <p>That said, for those dead-set on pulling the energy lever, focusing on grid reinforcement and further renewable deployment, backed by storage, seems like the highest-potential near-term strategy. If that's not to your liking, then you are not really pro-growth, but simply another flavour of NIMBY.</p>
 
   </main>
 
-<footer data-ed="123">
+<footer>
   <b>Sources &amp; method.</b> Bottom-up bill model from published tariff schedules, levy rates and market prices. Observed prices: <a href="https://www.gov.uk/government/statistical-data-sets/gas-and-electricity-prices-in-the-non-domestic-sector" target="_blank" rel="noopener">DESNZ Quarterly Energy Prices, table 3.4.2</a> (consumption bands, incl. CCL — the basis that matches Eurostat’s treatment of the German electricity tax); <a href="https://ec.europa.eu/eurostat/databrowser/view/nrg_pc_205/default/table" target="_blank" rel="noopener">Eurostat nrg_pc_205</a> (bands ID/IF, excl. VAT); Chinese provincial catalogue schedules, grid agency-purchase notices and <a href="https://www.ndrc.gov.cn/xxgk/zcfb/tz/202305/t20230515_1355747.html" target="_blank" rel="noopener">NDRC provincial T&amp;D price schedules</a> (2024 consumption weights; market reform per <a href="https://www.ndrc.gov.cn/xxgk/zcfb/tz/202110/t20211012_1299461.html" target="_blank" rel="noopener">NDRC 1439号, Oct 2021</a>). Networks &amp; levies: <a href="https://www.neso.energy/industry-information/charging/tnuos-charges" target="_blank" rel="noopener">NESO</a>/Ofgem charging schedules; <a href="https://www.netztransparenz.de/" target="_blank" rel="noopener">netztransparenz.de</a>/BNetzA. Supplier margin: <a href="https://www.ofgem.gov.uk/transparency-document/energy-companies-consolidated-segmental-statements-css" target="_blank" rel="noopener">Ofgem Consolidated Segmental Statements</a> (UK); BNetzA/Bundeskartellamt <a href="https://www.bundesnetzagentur.de/DE/Fachthemen/ElektrizitaetundGas/Monitoringberichte/start.html" target="_blank" rel="noopener">Monitoringbericht 2025</a> (DE, “Vertrieb und Marge”). Generation costs and nuclear: DESNZ Generation Costs 2023, Fraunhofer ISE 2024, IEA World Energy Outlook 2025, OECD/NEA Projected Costs 2020, NAO 2026, Cour des comptes 2025, Radiant Energy Group 2026; own calculations for Vogtle and Barakah. Gas marginal cost: hub gas prices (Ofgem, ONS, BNetzA, ACER) and EUA/UKA carbon prices. Output: <a href="https://worldsteel.org/data/" target="_blank" rel="noopener">worldsteel</a>, <a href="https://www.bgs.ac.uk/mineralsuk/statistics/world-mineral-statistics/" target="_blank" rel="noopener">BGS World Mineral Production</a> and <a href="https://www.usgs.gov/centers/national-minerals-information-center" target="_blank" rel="noopener">USGS Minerals Yearbook</a> (aluminium, cement), <a href="https://www.fao.org/faostat/en/#data/FO" target="_blank" rel="noopener">FAOSTAT</a> (paper), <a href="https://www.ons.gov.uk/economy/economicoutputandproductivity/output/datasets/indexofproduction" target="_blank" rel="noopener">Office for National Statistics (ONS)</a>, <a href="https://www-genesis.destatis.de/" target="_blank" rel="noopener">Destatis</a>, <a href="https://ec.europa.eu/eurostat/databrowser/view/sts_inpr_a/default/table" target="_blank" rel="noopener">Eurostat sts_inpr_a</a>, <a href="https://www.stats.gov.cn/sj/" target="_blank" rel="noopener">National Bureau of Statistics (NBS)</a>, <a href="https://stat.unido.org/" target="_blank" rel="noopener">UNIDO</a>. Exchange rates: <a href="https://www.federalreserve.gov/releases/h10/" target="_blank" rel="noopener">Fed H.10/G.5A</a> annual averages; deflated to real 2025 USD with US CPI-U (BLS). Model archetypes: large = 500 GWh/yr, 8,000 h, transmission-connected; medium = 20 GWh/yr, 5,000 h, HV distribution. Exempt-case assumptions require full EII/BesAR eligibility. The British stacks gross the energy purchase up for line losses — a transmission loss multiplier of 1.008 on every archetype, times a distribution loss factor of 1.024 for the HV-connected medium site and 1.000 for the transmission-connected large one — on the components settled on delivered energy (wholesale, balancing, CfD and Capacity Market) but not on those levied on metered volume. The German stacks carry no equivalent term, and should not: under the German Energy Industry Act (<a href="https://www.gesetze-im-internet.de/enwg_2005/__22.html" target="_blank" rel="noopener">EnWG §22</a>) and <a href="https://www.gesetze-im-internet.de/stromnev/__10.html" target="_blank" rel="noopener">StromNEV §10</a> the network operator buys the loss energy and recovers it inside the published network charge.
 </footer>
 
-<!-- ===== EDIT MODE (added 2026-07-27) — delete this block for a read-only build ===== -->
-<style id="edstyle">
-  #edbar{position:fixed; right:18px; bottom:18px; z-index:60; display:flex; gap:8px; align-items:center;
-         font-family:system-ui,-apple-system,"Segoe UI",sans-serif; font-size:13px;
-         background:rgba(252,252,251,.94); backdrop-filter:blur(6px);
-         border:1px solid var(--hair); border-radius:999px; padding:6px 8px 6px 14px;
-         box-shadow:0 2px 14px rgba(11,11,11,.10);}
-  #edbar .edstat{color:var(--muted); letter-spacing:.01em;}
-  #edbar button{font:inherit; cursor:pointer; border-radius:999px; padding:5px 13px; border:1px solid var(--hair);
-                background:var(--surface); color:var(--ink2);}
-  #edbar button:hover{border-color:var(--axis); color:var(--ink);}
-  #edbar button.primary{background:var(--uk); border-color:var(--uk); color:#fff;}
-  #edbar button.primary:hover{filter:brightness(.93);}
-  #edbar button[hidden]{display:none;}
-  html.ed-live [data-ed]{outline:1px dashed rgba(42,120,214,.30); outline-offset:4px; border-radius:2px;}
-  html.ed-live [data-ed]:focus{outline:2px solid var(--uk); background:rgba(42,120,214,.05);}
-  html.ed-live [data-ed].ed-changed{background:rgba(237,161,0,.09);}
-  @media print{#edbar{display:none;}}
-</style>
-<script id="edscript">
-(function(){
-  var SEL = 'h1, .standfirst, main h2, main h3, main p, main li, main dt, main dd, main .ah, footer';
-  var els = document.querySelectorAll(SEL), i;
-  for(i=0;i<els.length;i++){ els[i].setAttribute('data-ed', i); }
 
-  var ORIG = {}; for(i=0;i<els.length;i++){ ORIG[i] = els[i].innerHTML; }
-  var PRISTINE = '';
-
-  /* Snapshot the clean source: clone the whole document, then empty the containers the chart
-     script fills (figure.viz and #ladderbars are empty in the source file), so a saved copy
-     re-renders its charts on load instead of carrying stale baked-in SVGs. */
-  function snapshot(){
-    var c = document.documentElement.cloneNode(true), k;
-    var f = c.querySelectorAll('figure.viz'); for(k=0;k<f.length;k++){ f[k].innerHTML = ''; }
-    var lb = c.querySelector('#ladderbars'); if(lb){ lb.innerHTML = ''; }
-    var bar = c.querySelector('#edbar'); if(bar){ bar.remove(); }
-    var cr = c.querySelector('#chaprail'); if(cr){ cr.remove(); }
-    PRISTINE = '<!DOCTYPE html>\n' + c.outerHTML;
-  }
-
-  var on = false;
-
-  function changed(){
-    var n = 0, e = document.querySelectorAll('[data-ed]');
-    for(var k=0;k<e.length;k++){
-      var id = e[k].getAttribute('data-ed'), d = (e[k].innerHTML !== ORIG[id]);
-      e[k].classList.toggle('ed-changed', d && on);
-      if(d) n++;
-    }
-    return n;
-  }
-
-  function build(){
-    var doc = new DOMParser().parseFromString(PRISTINE, 'text/html');
-    var live = document.querySelectorAll('[data-ed]');
-    for(var k=0;k<live.length;k++){
-      var t = doc.querySelector('[data-ed="' + live[k].getAttribute('data-ed') + '"]');
-      if(t) t.innerHTML = live[k].innerHTML;
-    }
-    var ce = doc.querySelectorAll('[contenteditable]');
-    for(var j=0;j<ce.length;j++){ ce[j].removeAttribute('contenteditable'); }
-    return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
-  }
-  window.__edBuild = build;
-
-  function status(){
-    var n = changed();
-    document.getElementById('edstat').textContent =
-      on ? (n ? (n + ' block' + (n>1?'s':'') + ' edited') : 'Editing — click any paragraph')
-         : (n ? (n + ' unsaved edit' + (n>1?'s':'')) : 'Read-only');
-    document.getElementById('edsave').hidden = !n;
-    document.getElementById('edreset').hidden = !n;
-  }
-
-  function setMode(v){
-    on = v;
-    document.documentElement.classList.toggle('ed-live', on);
-    var e = document.querySelectorAll('[data-ed]');
-    for(var k=0;k<e.length;k++){
-      if(on){ e[k].setAttribute('contenteditable','true'); } else { e[k].removeAttribute('contenteditable'); }
-    }
-    document.getElementById('edtoggle').textContent = on ? 'Done' : 'Edit text';
-    document.getElementById('edtoggle').classList.toggle('primary', on);
-    status();
-  }
-
-  function boot(){
-    snapshot();
-    var bar = document.createElement('div');
-    bar.id = 'edbar';
-    bar.innerHTML = '<span class="edstat" id="edstat">Read-only</span>' +
-                    '<button id="edreset" hidden>Revert all</button>' +
-                    '<button id="edsave" class="primary" hidden>Save copy</button>' +
-                    '<button id="edtoggle">Edit text</button>';
-    document.body.appendChild(bar);
-
-    document.getElementById('edtoggle').onclick = function(){ setMode(!on); };
-
-    document.getElementById('edsave').onclick = function(){
-      var html = build(), name = 'paying_for_power_article_v7_edited.html', st = document.getElementById('edstat');
-      function note(m){ st.textContent = m; }
-      function copyToClipboard(){
-        if(navigator.clipboard && navigator.clipboard.writeText){
-          return navigator.clipboard.writeText(html).then(function(){ return true; }, function(){ return false; });
-        }
-        return Promise.resolve(false);
-      }
-      function blobDownload(){
-        var blob = new Blob([html], {type:'text/html;charset=utf-8'});
-        var a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = name;
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
-      }
-      /* 1. File System Access API (Chrome/Edge): a real save dialog with real success/failure */
-      if(window.showSaveFilePicker){
-        window.showSaveFilePicker({suggestedName:name, types:[{description:'HTML', accept:{'text/html':['.html']}}]})
-          .then(function(fh){ return fh.createWritable(); })
-          .then(function(w){ return w.write(html).then(function(){ return w.close(); }); })
-          .then(function(){ note('Saved as ' + name); })
-          .catch(function(err){
-            if(err && err.name === 'AbortError'){ status(); return; }   /* user cancelled */
-            /* 2. sandboxed or unsupported: fall back to a download, and copy the HTML too */
-            blobDownload();
-            copyToClipboard().then(function(ok){
-              note(ok ? 'Download attempted \u2014 if nothing arrived, the page HTML is on your clipboard: paste it into a text editor and save as ' + name
-                      : 'Download attempted \u2014 if nothing arrived, this page is sandboxed; open the local .html file to save');
-            });
-          });
-        return;
-      }
-      /* 3. browsers without the API (Safari/Firefox) */
-      blobDownload();
-      copyToClipboard().then(function(ok){
-        note(ok ? 'Download started \u2014 the HTML is also on your clipboard as a backup' : 'Download started');
-      });
-    };
-
-    document.getElementById('edreset').onclick = function(){
-      if(!window.confirm('Revert every edit back to the original text?')) return;
-      var e = document.querySelectorAll('[data-ed]');
-      for(var k=0;k<e.length;k++){ e[k].innerHTML = ORIG[e[k].getAttribute('data-ed')]; }
-      status();
-    };
-
-    document.addEventListener('input', function(ev){
-      if(on && ev.target.closest && ev.target.closest('[data-ed]')) status();
-    });
-
-    /* paste as plain text, so pasted formatting can't pollute the markup */
-    document.addEventListener('paste', function(ev){
-      if(!on) return;
-      var t = ev.target.closest && ev.target.closest('[data-ed]');
-      if(!t) return;
-      ev.preventDefault();
-      document.execCommand('insertText', false, (ev.clipboardData || window.clipboardData).getData('text/plain'));
-    });
-
-    window.addEventListener('beforeunload', function(ev){
-      if(changed()){ ev.preventDefault(); ev.returnValue = ''; }
-    });
-  }
-
-  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); } else { boot(); }
-})();
-</script>
-<!-- ===== /EDIT MODE ===== -->
 
 <script>
 const DATA = {"delays": {"rows": [["San'ao 1", "CN", "Hualong One", 2020, 5.4, 5.33, "on plan", ""], ["Fuqing 5", "CN", "Hualong One", 2015, 4.6, 5.7, "+1.1", ""], ["Karachi K-2", "PK", "Hualong One", 2015, 6.0, 5.75, "on plan", ""], ["Taipingling 1", "CN", "Hualong One", 2019, 5.5, 6.31, "+0.8", ""], ["Fangchenggang 3", "CN", "Hualong One", 2015, 4.0, 7.25, "+3.3", ""], ["Belarusian 1", "BY", "VVER-1200", 2013, 5.0, 7.6, "+2.6", ""], ["Barakah 1", "AE", "APR1400", 2012, 5.0, 8.7, "+3.7", "lic"], ["Taishan 1", "CN", "EPR", 2009, 4.0, 9.1, "+5.1", ""], ["Taishan 2", "CN", "EPR", 2010, 5.2, 9.4, "+4.2", ""], ["Sanmen 1", "CN", "AP1000", 2009, 4.3, 9.4, "+5.1", ""], ["Leningrad II-1", "RU", "VVER-1200", 2008, 5.0, 10.0, "+5.0", ""], ["Shin Hanul 1", "KR", "APR1400", 2012, 4.7, 10.4, "+5.7", ""], ["Vogtle 3", "US", "AP1000", 2013, 3.1, 10.4, "+7.3", ""], ["Vogtle 4", "US", "AP1000", 2013, 3.4, 10.4, "+7.0", ""], ["Hinkley Point C 1", "UK", "EPR", 2018, 7.0, 11.0, "+4, building", "bld"], ["Kakrapar 3", "IN", "PHWR-700", 2010, 5.0, 12.6, "+7.6", ""], ["Flamanville 3", "FR", "EPR", 2007, 4.5, 17.0, "+12.5", "grid"], ["Olkiluoto 3", "FI", "EPR", 2005, 3.9, 17.7, "+13.8", ""]], "note": "S206/S207. planned = duration implied by the schedule stated at/nearest construction start (Vogtle: GA PSC certified CODs; OL3: 2003 TVO turnkey contract; HPC: end-2025 U1 objective at 2016 FID; Taishan 2: WNN 16.04.2010 start-up 2015; San'ao 1: WNN 04.01.2022 'begin supplying electricity in 2026' - delivered COD 29.04.2026, on plan). actual = IAEA PRIS first concrete -> commercial operation. FLA3 to grid (12/2024; comm op 2026). Barakah delay = operator licensing. HPC actual = projected to EDF Feb-2026 guidance (U1 start-up 2030, GBP35bn 2015 prices). Row index 3 = construction start year (IAEA PRIS). Taipingling 1 (S208): FCD 26.12.2019, grid 13.02.2026, COD 19.04.2026 = 6.31 yr; baseline 'operation in 2025' is a mid-project restatement (WNN 03.06.2024) - no construction-start-era schedule recoverable, WEAK baseline; planned 5.5 = FCD->mid-2025. Taipingling 2 grid 04.07.2026, COD expected H2-2026 - joins the chart at COD."}, "years": [2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025], "unit": "Real 2025 USD/MWh (Fed H.10 annual-avg FX; excl VAT)", "buckets": {"UK.large.E1": {"wholesale": [103.411, 111.5874, 101.3305, 110.725, 95.9125, 85.3117, 78.1738, 79.0863, 100.6649, 71.0317, 59.6132, 210.3316, 122.8788, 362.8398, 168.751, 106.2505], "network": [7.9165, 9.4504, 10.1942, 11.3116, 13.4851, 14.3836, 14.7821, 14.189, 15.1614, 15.981, 17.9248, 21.9219, 22.0437, 29.8337, 24.9896, 30.2973], "levies": [20.1951, 23.2998, 29.3391, 35.0135, 42.5607, 47.1401, 47.3855, 52.4639, 64.568, 73.1379, 77.337, 77.0922, 56.3816, 63.098, 77.4559, 71.2601], "total": [131.5226, 144.3375, 140.8638, 157.0502, 151.9583, 146.8354, 140.3414, 145.7391, 180.3943, 160.1506, 154.8749, 309.3457, 201.3041, 455.7714, 271.1965, 207.8079], "wedge": [21.1326, 17.6259, 39.1206, 27.5237, 50.5816, 45.0843, 29.7088, 10.2516, -11.1512, 23.0141, 45.1938, -77.3898, 68.2368, -165.5644, 19.3043, 74.2227], "labels": ["R (i) Wholesale [= b1]", "R (ii) Network incl system services & balancing [= b3+b4]", "R (iii) Levies & taxes incl gen-capital recovery [= b2+b5]", "R TOTAL (i)+(ii)+(iii) [= engine total]", "R (iv) Wedge to observed = obs − E1 stack (D68 per-case; CCL-consistent). Population-matched headline view: ≈ retail costs + margin + band mix (CSS split, Q88)."]}, "UK.large.E2": {"wholesale": [103.3909, 111.5597, 101.3036, 110.6929, 95.8762, 85.2756, 78.1323, 79.0294, 100.5614, 70.8898, 59.4219, 210.1217, 122.7617, 362.6396, 168.5175, 105.9814], "network": [7.9165, 9.4504, 10.1942, 11.3116, 13.4851, 14.3836, 14.7821, 14.189, 15.1614, 15.981, 17.9248, 21.9219, 22.0437, 29.8337, 10.3275, 12.4433], "levies": [9.4727, 12.1635, 18.0243, 23.6862, 30.4331, 35.6388, 36.8041, 40.4952, 17.2118, 12.1224, 12.5615, 13.7993, 8.5495, 10.2019, 0, 0], "total": [120.7801, 133.1736, 129.5221, 145.6908, 139.7944, 135.298, 129.7185, 133.7136, 132.9346, 98.9932, 89.9082, 245.843, 153.3549, 402.6752, 178.845, 118.4247], "wedge": [31.8752, 28.7899, 50.4623, 38.8832, 62.7454, 56.6218, 40.3317, 22.2771, 36.3086, 84.1715, 110.1606, -13.8871, 116.186, -112.4682, 111.6558, 163.6059], "labels": ["R (i) Wholesale [= b1]", "R (ii) Network incl system services & balancing [= b3+b4]", "R (iii) Levies & taxes incl gen-capital recovery [= b2+b5]", "R TOTAL (i)+(ii)+(iii) [= engine total]", "R (iv) Wedge to observed = obs − E2 stack (plain difference; obs = QEP 3.4.2 incl CCL, stack incl CCL with E2 at zero — min/met exemption, D71). Mostly UNCLAIMED-RELIEF premium — the QEP band is unrelieved-dominated (Q97 measured exempt share: 14.5% of industrial consumption exempted, 2024-25)."]}, "UK.medium.E1": {"wholesale": [105.8723, 114.2371, 103.7349, 113.3495, 98.1772, 87.3222, 80.0233, 81.0173, 103.2206, 72.9721, 61.3636, 215.6452, 125.7714, 371.5678, 173.0836, 109.0469], "network": [28.7525, 30.751, 31.4155, 32.8322, 37.1328, 37.7141, 37.7007, 36.328, 44.2655, 46.8252, 45.9472, 52.2169, 40.0488, 37.118, 36.5903, 36.7225], "levies": [20.1951, 23.2998, 29.3391, 35.0135, 42.5607, 47.1401, 47.3855, 52.4639, 64.568, 73.1379, 77.337, 77.0922, 56.3816, 63.098, 77.4559, 71.2601], "total": [154.82, 168.2879, 164.4896, 181.1952, 177.8707, 172.1764, 165.1094, 169.8092, 212.0542, 192.9352, 184.6477, 344.9543, 222.2018, 471.7838, 287.1298, 217.0294], "wedge": [2.0698, 1.4328, 21.8947, 16.4215, 36.3877, 30.8501, 13.6042, 6.961, -26.1373, -2.1791, 24.5159, -114.6576, 40.411, -115.985, 64.0761, 104.8656], "labels": ["R (i) Wholesale [= b1]", "R (ii) Network incl system services & balancing [= b3+b4]", "R (iii) Levies & taxes incl gen-capital recovery [= b2+b5]", "R TOTAL (i)+(ii)+(iii) [= engine total]", "R (iv) Wedge to observed = obs − E1 stack (D68 per-case; CCL-consistent). Population-matched headline view: ≈ retail costs + margin + band mix (CSS split, Q88)."]}, "UK.medium.E2": {"wholesale": [105.8723, 114.2371, 103.7349, 113.3495, 98.1772, 87.3222, 80.0074, 80.9261, 102.9749, 72.5911, 60.848, 215.1646, 125.708, 371.343, 172.5619, 108.5249], "network": [28.7525, 30.751, 31.4155, 32.8322, 37.1328, 37.7141, 37.7007, 36.328, 44.2655, 46.8252, 45.9472, 52.2169, 40.0488, 37.118, 14.9678, 15.0134], "levies": [9.4727, 12.1635, 18.0243, 23.6862, 30.4331, 35.6388, 36.8041, 40.4952, 17.2118, 12.1224, 12.5615, 13.7993, 8.5495, 10.2019, 0, 0], "total": [144.0975, 157.1516, 153.1747, 169.8679, 165.7432, 160.6751, 154.5123, 157.7493, 164.4522, 131.5387, 119.3567, 281.1809, 174.3063, 418.6629, 187.5297, 123.5383], "wedge": [12.7922, 12.5691, 33.2095, 27.7488, 48.5153, 42.3513, 24.2013, 19.0208, 21.4647, 59.2174, 89.807, -50.8842, 88.3065, -62.864, 163.6761, 198.3567], "labels": ["R (i) Wholesale [= b1]", "R (ii) Network incl system services & balancing [= b3+b4]", "R (iii) Levies & taxes incl gen-capital recovery [= b2+b5]", "R TOTAL (i)+(ii)+(iii) [= engine total]", "R (iv) Wedge to observed = obs − E2 stack (plain difference; obs = QEP 3.4.2 incl CCL, stack incl CCL with E2 at zero — min/met exemption, D71). Mostly UNCLAIMED-RELIEF premium — the QEP band is unrelieved-dominated (Q97 measured exempt share: 14.5% of industrial consumption exempted, 2024-25)."]}, "DE.large.E1": {"wholesale": [null, 99.494, 101.1192, 90.4859, 70.668, 52.887, 46.0408, 39.482, 49.0877, 61.7984, 67.8721, 56.5026, 102.4398, 341.6146, 152.6897, 100.2842], "network": [null, 8.1275, 9.3303, 9.8182, 9.5053, 9.3916, 10.1888, 12.1051, 17.929, 14.426, 16.5971, 16.6699, 16.202, 16.9934, 35.0735, 33.6892], "levies": [null, 111.856, 102.6337, 136.5073, 151.8137, 125.4103, 125.8226, 139.6098, 139.9298, 128.9957, 134.0978, 129.2954, 54.5631, 34.2643, 33.1031, 35.5348], "total": [null, 219.4776, 213.0832, 236.8114, 231.987, 187.6889, 182.0523, 191.1969, 206.9464, 205.2201, 218.5671, 202.4679, 173.2049, 392.8723, 220.8663, 169.5082], "wedge": [null, -18.7947, -46.1139, -50.0581, -42.4781, -40.6632, -57.8164, -43.3622, -71.1978, -74.4059, -67.4799, -27.0568, 30.7476, -198.2354, -64.0679, -6.3061], "labels": ["R (i) Wholesale [= b1]", "R (ii) Network incl system services & balancing [= b3+b4]", "R (iii) Levies & taxes incl gen-capital recovery [= b2+b5]", "R TOTAL (i)+(ii)+(iii) [= engine total]", "R (iv) Wedge to observed = obs − E1 stack (D68 per-case; raw Eurostat X_VAT basis). NEGATIVE ≈ supply costs − relief embedded in the band average (relieved-dominated)."]}, "DE.large.E2": {"wholesale": [null, 99.494, 101.1192, 90.4859, 70.668, 52.887, 46.0408, 39.482, 49.0877, 61.7984, 67.8721, 56.5026, 102.4398, 341.6146, 152.6897, 100.2842], "network": [null, 0.0, 1.2978, 1.359, 2.6447, 2.5237, 2.6465, 3.1742, 4.6347, 3.7052, 4.2507, 4.2885, 4.073, 4.2339, 8.5726, 8.2589], "levies": [null, 32.2409, 29.517, 30.6966, 30.1528, 25.0628, 24.3995, 30.4263, 29.6348, 32.182, 31.6368, 31.4278, 27.3366, 28.4012, 10.8937, 12.9228], "total": [null, 131.7349, 131.934, 122.5416, 103.4655, 80.4735, 73.0869, 73.0825, 83.3572, 97.6856, 103.7596, 92.2189, 133.8493, 374.2498, 172.156, 121.4659], "wedge": [null, 68.948, 35.0353, 64.2118, 86.0434, 66.5522, 51.149, 74.7523, 52.3915, 33.1285, 47.3276, 83.1922, 70.1032, -179.6129, -15.3576, 41.7363], "labels": ["R (i) Wholesale [= b1]", "R (ii) Network incl system services & balancing [= b3+b4]", "R (iii) Levies & taxes incl gen-capital recovery [= b2+b5]", "R TOTAL (i)+(ii)+(iii) [= engine total]", "R (iv) Wedge to observed = obs IF − E2 stack (D68 per-case; raw basis). Population-matched headline view: ≈ supply costs + relief-spectrum premium of the unrelieved minority (D67 rationale)."]}, "DE.medium.E1": {"wholesale": [null, 99.494, 101.1192, 90.4859, 70.668, 52.887, 46.0408, 39.482, 49.0877, 61.7984, 67.8721, 56.5026, 102.4398, 341.6146, 152.6897, 100.2842], "network": [null, 29.1105, 31.1048, 34.6003, 36.6477, 32.271, 34.7474, 35.5976, 38.5126, 33.6783, 36.7321, 40.6214, 36.4814, 39.8251, 53.8895, 53.6583], "levies": [null, 111.856, 102.6295, 136.6893, 151.998, 125.3519, 126.1206, 139.5628, 139.9211, 128.9957, 134.0978, 129.2954, 54.5631, 34.2643, 33.1031, 35.5348], "total": [null, 240.4605, 234.8535, 261.7755, 259.3137, 210.51, 206.9088, 214.6424, 227.5213, 224.4724, 238.7021, 226.4195, 193.4843, 415.7041, 239.6822, 189.4773], "wedge": [null, -15.1534, -26.232, -27.6685, -15.0136, -13.3704, -17.7703, -26.2867, -40.867, -36.2156, -22.7518, -5.5392, 31.1532, -183.0084, -12.4245, 28.3894], "labels": ["R (i) Wholesale [= b1]", "R (ii) Network incl system services & balancing [= b3+b4]", "R (iii) Levies & taxes incl gen-capital recovery [= b2+b5]", "R TOTAL (i)+(ii)+(iii) [= engine total]", "R (iv) Wedge to observed = obs − E1 stack (D68 per-case; raw Eurostat X_VAT basis). NEGATIVE ≈ supply costs − relief embedded in the band average (relieved-dominated)."]}, "DE.medium.E2": {"wholesale": [null, 99.494, 101.1192, 90.4859, 70.668, 52.887, 46.0408, 39.482, 49.0877, 61.7984, 67.8721, 56.5026, 102.4398, 341.6146, 152.6897, 100.2842], "network": [null, 29.1105, 30.6766, 34.1644, 36.2183, 31.9131, 34.3947, 35.2451, 38.1528, 33.3435, 36.395, 40.2876, 36.2062, 39.5537, 53.6257, 53.3898], "levies": [null, 39.1795, 35.8995, 39.6684, 51.1758, 42.1701, 42.1295, 49.3042, 48.6954, 48.8574, 49.3858, 48.3118, 31.1994, 28.4012, 10.8937, 12.9228], "total": [null, 167.784, 167.6952, 164.3187, 158.0621, 126.9702, 122.565, 124.0313, 135.9359, 143.9993, 153.653, 145.1021, 169.8454, 409.5695, 217.2091, 166.5967], "wedge": [null, 57.5231, 40.9262, 69.7883, 86.238, 70.1693, 66.5736, 64.3244, 50.7185, 44.2574, 62.2973, 75.7782, 54.7921, -176.8738, 10.0486, 51.2699], "labels": ["R (i) Wholesale [= b1]", "R (ii) Network incl system services & balancing [= b3+b4]", "R (iii) Levies & taxes incl gen-capital recovery [= b2+b5]", "R TOTAL (i)+(ii)+(iii) [= engine total]", "R (iv) Wedge to observed = obs ID − E2 stack (D68 per-case; raw basis). Population-matched headline view: ≈ supply costs + relief-spectrum premium of the unrelieved minority (D67 rationale)."]}, "CN.large": {"bundled": [null, null, 144.8662, 146.5256, 143.8543, 139.0259, 128.8506, 120.806, 118.7436, 111.1898, 104.8311, 105.613, 0, 0, 0, 0], "wholesale": [null, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 78.7221, 71.8444, 66.6573, 59.2092], "network": [null, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26.3862, 22.4819, 15.5465, 16.458], "levies": [null, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4.8064, 4.3869, 11.0395, 11.2035], "total": [null, null, 144.8662, 146.5256, 143.8543, 139.0259, 128.8506, 120.806, 118.7436, 111.1898, 104.8311, 105.613, 109.9146, 98.7132, 93.2433, 86.8707], "labels": ["R 1-4 bundled (CN catalogue, pre-2022; spans W+N+L&T, non-splittable)", "R (i) Wholesale [= b1]", "R (ii) Network incl system services & balancing [= b3+b4]", "R (iii) Levies & taxes incl gen-capital recovery [= b2+b5]", "R TOTAL bundled+(i)+(ii)+(iii) [= engine total]"]}, "CN.medium": {"bundled": [null, null, 163.2327, 165.1024, 162.0925, 156.8924, 145.4083, 136.738, 134.6437, 126.1307, 118.9214, 122.693, 0, 0, 0, 0], "wholesale": [null, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 73.8126, 70.0038, 65.9443, 62.633], "network": [null, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 44.5328, 41.2627, 35.0125, 35.4465], "levies": [null, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4.8064, 4.3869, 11.0395, 11.2035], "total": [null, null, 163.2327, 165.1024, 162.0925, 156.8924, 145.4083, 136.738, 134.6437, 126.1307, 118.9214, 122.693, 123.1517, 115.6534, 111.9962, 109.283], "labels": ["R 1-4 bundled (CN catalogue, pre-2022; spans W+N+L&T, non-splittable)", "R (i) Wholesale [= b1]", "R (ii) Network incl system services & balancing [= b3+b4]", "R (iii) Levies & taxes incl gen-capital recovery [= b2+b5]", "R TOTAL bundled+(i)+(ii)+(iii) [= engine total]"]}}, "prices": {"large": {"UK": {"E1": [131.5226, 144.3375, 140.8638, 157.0502, 151.9583, 146.8354, 140.3414, 145.7391, 180.3943, 160.1506, 154.8749, 309.3457, 201.3041, 455.7714, 271.1965, 207.8079], "E2": [120.7801, 133.1736, 129.5221, 145.6908, 139.7944, 135.298, 129.7185, 133.7136, 132.9346, 98.9932, 89.9082, 245.843, 153.3549, 402.6752, 178.845, 118.4247], "obs": [152.6552, 161.9635, 179.9844, 184.5739, 202.5398, 191.9197, 170.0501, 155.9907, 169.2432, 183.1647, 200.0688, 231.9559, 269.5409, 290.207, 290.5008, 282.0306]}, "DE": {"E1": [null, 219.4776, 213.0832, 236.8114, 231.987, 187.6889, 182.0523, 191.1969, 206.9464, 205.2201, 218.5671, 202.4679, 173.2049, 392.8723, 220.8663, 169.5082], "E2": [null, 131.7349, 131.934, 122.5416, 103.4655, 80.4735, 73.0869, 73.0825, 83.3572, 97.6856, 103.7596, 92.2189, 133.8493, 374.2498, 172.156, 121.4659], "E2lo": [null, 131.7349, 131.0915, 121.6525, 102.2848, 79.2776, 71.7658, 71.5055, 80.9779, 95.7755, 101.5505, 90.0028, 131.6683, 371.9519, 167.3256, 116.8333], "E2hi": [null, 138.6736, 140.0153, 135.4277, 126.0882, 100.3189, 93.8318, 96.3923, 111.1262, 121.0464, 129.5887, 117.4062, 148.672, 386.7241, 198.3798, 146.6141], "obs": [168.9655, 200.6829, 166.9693, 186.7534, 189.5089, 147.0257, 124.2359, 147.8347, 135.7486, 130.8141, 151.0872, 175.4111, 203.9525, 194.6369, 156.7984, 163.2021], "obsIG": [null, null, null, null, null, null, null, null, null, null, 97.6496, 154.1172, 220.4078, 178.0648, 144.4722, 149.5219]}, "CN": {"E": [null, null, 144.8662, 146.5256, 143.8543, 139.0259, 128.8506, 120.806, 118.7436, 111.1898, 104.8311, 105.613, 109.9146, 103.4517, 95.3654, 86.8523]}}, "medium": {"UK": {"E1": [154.82, 168.2879, 164.4896, 181.1952, 177.8707, 172.1764, 165.1094, 169.8092, 212.0542, 192.9352, 184.6477, 344.9543, 222.2018, 471.7838, 287.1298, 217.0294], "E2": [144.0975, 157.1516, 153.1747, 169.8679, 165.7432, 160.6751, 154.5123, 157.7493, 164.4522, 131.5387, 119.3567, 281.1809, 174.3063, 418.6629, 187.5297, 123.5383], "obs": [156.8898, 169.7207, 186.3843, 197.6168, 214.2585, 203.0265, 178.7136, 176.7701, 185.9169, 190.7561, 209.1637, 230.2967, 262.6128, 355.7989, 351.2058, 321.895]}, "DE": {"E1": [null, 240.4605, 234.8535, 261.7755, 259.3137, 210.51, 206.9088, 214.6424, 227.5213, 224.4724, 238.7021, 226.4195, 193.4843, 415.7041, 239.6822, 189.4773], "E2": [null, 167.784, 167.6952, 164.3187, 158.0621, 126.9702, 122.565, 124.0313, 135.9359, 143.9993, 153.653, 145.1021, 169.8454, 409.5695, 217.2091, 166.5967], "obs": [200.7811, 225.3071, 208.6215, 234.107, 244.3001, 197.1395, 189.1386, 188.3557, 186.6543, 188.2567, 215.9503, 220.8803, 224.6374, 232.6957, 227.2578, 217.8666]}, "CN": {"E": [null, null, 163.2327, 165.1024, 162.0925, 156.8924, 145.4083, 136.738, 134.6437, 126.1307, 118.9214, 122.693, 123.1517, 115.6534, 111.9962, 109.283]}}, "obs_labels": {"large": {"UK": "UK OBSERVED QEP Extra Large (incl CCL, 3.4.2) — real 2025 USD/MWh", "DE": "DE OBSERVED Eurostat IF — real 2025 USD/MWh", "DE_IG": "DE OBSERVED Eurostat IG — real 2025 USD/MWh"}, "medium": {"UK": "UK OBSERVED QEP Large (incl CCL, 3.4.2) — real 2025 USD/MWh", "DE": "DE OBSERVED Eurostat ID — real 2025 USD/MWh"}}, "events": [{"year": 2016, "ctry": "UK", "label": "CfD ILR begins"}, {"year": 2018, "ctry": "UK", "label": "EII exemptions 85%"}, {"year": 2023, "ctry": "UK", "label": "TCR residual charging"}, {"year": 2024, "ctry": "UK", "label": "Exemptions 100% + NCC"}, {"year": 2022, "ctry": "DE", "label": "EEG moved to federal budget"}, {"year": 2021, "ctry": "CN", "label": "Market reform (Oct 2021)"}], "validation": {"years": [2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], "e1_ya_exCCL": [52.9507, 58.0107, 58.2779, 67.4112, 62.3771, 65.1885, 71.5947, 80.4041, 99.4628, 91.1358, 88.9392, 181.4154, 140.1693, 339.0052, 198.9971, 149.7757, 160.0632], "e1_da_exCCL": [52.9507, 58.0107, 58.2779, 67.4112, 62.3771, 65.1885, 71.5947, 80.4041, 99.4628, 91.1358, 88.9392, 181.4154, 263.5082, 161.184, 146.8231, 154.0396, 169.3368], "obs": [66.003, 69.439, 79.558, 84.181, 89.002, 90.571, 90.665, 89.594, 95.768, 107.672, 118.835, 134.792, 191.282, 216.796, 216.979, 209.266, null], "gate_note": "GATE UK large: QEP XL ∈ [E2−CCL, E1−CCL] (provisional pre-2024: E1 understated by FiT/CM/BSUoS gaps)"}}, "output": {"manufacturing": {"UK": [100.0, 98.0392, 100.8578, 105.1471, 108.3333, 110.6618, 109.5588, 111.3971, 116.7892, 118.2598, 117.2794, 123.5294, 120.3431, 122.549, 122.9167, 121.8137], "DE": [100.0, 108.4764, 107.2961, 107.1888, 109.3348, 110.515, 111.6953, 114.6996, 115.9871, 112.3391, 102.3605, 107.2961, 107.0815, 105.794, 100.6438, 99.5708], "CN": [100.0, 114.8802, 127.6465, 141.0493, 154.308, 165.1095, 176.337, 189.0332, 201.3204, 213.3996, 220.6552, 242.2794, 249.5478, 262.0252, 278.0087, 295.8013]}, "mfg_labels": {"UK": "UK — manufacturing, NACE section C (context)", "DE": "Germany — manufacturing, NACE section C (context)", "CN": "China — manufacturing, above designated size (context)"}, "compositeVW": {"UK": {"c": [100.0, 102.4084, 89.654, 101.0421, 101.7843, 94.7075, 78.0351, 78.6976, 77.6603, 76.2795, 72.3125, 74.5686, 66.3719, 61.689, 54.1414, null], "lo": [100.0, 101.1435, 84.4228, 90.8921, 90.6814, 86.092, 71.8754, 72.6761, 71.7445, 69.1694, 65.5477, 67.4853, 59.1861, 55.0896, 47.3791, null], "hi": [100.0, 102.4084, 95.6278, 109.0426, 110.0214, 101.9196, 83.5626, 84.1849, 83.0415, 81.9985, 77.8308, 80.2077, 71.5127, 66.462, 58.1388, null], "adj": [100.0, 101.1435, 95.6278, 109.0426, 110.0214, 101.9196, 83.5626, 84.1849, 83.0415, 81.9985, 77.8308, 80.2077, 71.5127, 66.462, 58.1388, null], "eq": [100.0, 105.3331, 82.9078, 89.1206, 90.6093, 86.7777, 76.9419, 77.8515, 76.9826, 75.0696, 69.7292, 73.341, 66.372, 61.472, 56.4226, null]}, "DE": {"c": [100.0, 103.0367, 99.981, 102.1678, 104.3728, 104.1423, 104.4492, 106.7443, 104.6666, 100.5809, 97.0704, 102.7349, 90.6769, 77.9474, 80.9222, null], "lo": [100.0, 102.5665, 99.7664, 100.062, 101.5047, 100.9757, 101.1717, 103.6209, 101.8726, 97.902, 93.473, 100.2478, 90.2261, 76.4526, 79.9937, null], "hi": [100.0, 103.0367, 99.981, 102.1678, 104.3728, 104.1423, 104.4492, 106.7443, 104.6666, 100.5809, 97.0704, 102.7349, 91.2798, 81.1504, 83.6506, null], "adj": [100.0, 102.5665, 99.7664, 100.062, 101.5047, 100.9757, 101.1717, 103.6209, 101.8726, 97.902, 93.473, 100.2478, 91.2798, 81.1504, 83.6506, null], "eq": [100.0, 105.4385, 102.08, 105.9829, 109.3595, 109.1341, 110.456, 112.7971, 110.4434, 107.3393, 106.7305, 109.4931, 93.823, 76.2841, 78.6284, null]}, "CN": {"c": [100.0, 109.9796, 115.5959, 129.1046, 134.7188, 134.7349, 138.1418, 143.1997, 148.4169, 153.5565, 161.0418, 162.7141, 161.6061, 167.4097, 168.329, 166.8695], "lo": [100.0, 109.7594, 114.2869, 125.745, 129.6869, 128.0245, 130.973, 136.1357, 139.5586, 146.3553, 153.3322, 154.2456, 151.9484, 157.1574, 156.8471, 154.5766], "hi": [100.0, 109.9796, 115.5959, 129.1046, 134.7188, 134.7349, 138.1418, 143.1997, 148.4169, 153.5565, 161.0418, 162.7141, 161.6061, 167.4097, 168.329, 166.8695], "adj": [100.0, 109.7594, 114.2869, 125.745, 129.6869, 128.0245, 130.973, 136.1357, 139.5586, 146.3553, 153.3322, 154.2456, 151.9484, 157.1574, 156.8471, 154.5766], "eq": [100.0, 110.793, 117.647, 133.1531, 141.078, 142.5238, 146.7746, 149.7846, 155.1652, 157.7038, 164.6563, 167.7676, 166.6699, 172.2047, 173.7271, 173.2577]}}, "weights": {"basis": "Eurostat SBS EU27 value added, NACE 24.10/24.42/23.51/17.12, base 2010", "steel": 0.442, "aluminium": 0.145, "cement": 0.131, "paper": 0.282, "adjusted": {"steel": 0.488, "aluminium": 0.056, "cement": 0.144, "paper": 0.312, "note": "scope-adjusted variant: NACE 24.42 spans secondary metal, alloys, semis and foil, while the tonnage series is primary aluminium only; f=0.35 of 24.42 value added attributed to primary (an inference, hence a variant)"}}, "eiAgg": {"UK": {"c": [100.0, 82.755, 97.7815, 101.5217, 115.8709, 140.31, 133.2346, 130.2407, 135.169, 142.1346, 146.6313, 143.9061, 130.2226, 125.0977, 122.0957, 114.5706], "lo": [100.0, 82.755, 97.7815, 100.8121, 113.3062, 135.1728, 127.937, 124.036, 128.4972, 133.4828, 139.1855, 134.4673, 119.1816, 113.0219, 110.3098, 103.6134], "hi": [100.0, 85.3982, 100.7328, 101.5217, 115.8709, 140.31, 133.2346, 130.2407, 135.169, 142.1346, 146.6313, 143.9061, 130.2226, 125.0977, 122.0957, 114.5706]}, "DE": {"c": [100.0, 102.8034, 99.8316, 99.475, 99.7325, 99.8613, 100.0792, 101.6147, 100.5547, 97.1867, 93.3234, 99.049, 93.3135, 82.6251, 83.1105, 80.8717]}, "CN": {"c": [100.0, 113.4529, 126.0656, 140.8039, 153.6703, 165.8632, 172.892, 176.8586, 186.7754, 201.645, 209.8736, 220.4014, 227.1835, 242.5008, 256.4838, 269.8705], "lo": [100.0, 113.4529, 126.0656, 140.8039, 153.6703, 165.8632, 172.892, 176.8586, 186.7754, 201.645, 209.8736, 220.4014, 227.1835, 242.5008, 256.4838, 269.8705], "hi": [100.0, 113.537, 126.2031, 141.0124, 153.9938, 166.3031, 173.5557, 177.6007, 187.5195, 202.3816, 210.5332, 221.2475, 228.1485, 243.5314, 257.6795, 271.1768]}}, "eiAgg3": {"UK": {"c": [100.0, 90.5852, 104.1199, 106.39, 114.9127, 122.4509, 119.8308, 115.902, 118.8262, 121.7104, 123.4587, 120.4449, 117.4058, 118.106, 112.3971, 103.378], "lo": [100.0, 90.5852, 103.448, 106.0206, 112.9988, 119.0313, 115.6305, 111.3381, 114.0534, 116.4257, 118.0592, 115.3076, 108.244, 106.8738, 101.7079, 93.6202], "hi": [100.0, 91.5944, 104.8672, 106.39, 114.9127, 122.4509, 119.8308, 115.902, 118.8262, 121.7104, 123.4587, 120.4449, 117.4058, 118.106, 112.3971, 103.378]}, "DE": {"c": [100.0, 104.9135, 101.0827, 100.3023, 102.1308, 102.2876, 102.4852, 104.368, 104.4559, 100.6427, 93.7372, 100.2289, 96.4088, 86.858, 84.9011, 82.8613]}, "CN": {"c": [100.0, 112.9536, 125.243, 139.6754, 151.7704, 162.8196, 167.3149, 170.0273, 181.1195, 198.1619, 206.8217, 214.8594, 218.1671, 230.0194, 239.8489, 249.288], "lo": [100.0, 112.9536, 125.243, 139.6754, 151.7704, 162.8196, 167.3149, 170.0273, 181.1195, 198.1619, 206.8217, 214.8594, 218.1671, 230.0194, 239.8489, 249.288], "hi": [100.0, 113.0568, 125.4117, 139.9348, 152.1682, 163.3462, 168.0785, 170.8625, 181.9943, 199.094, 207.6583, 215.8819, 219.249, 231.0861, 241.0191, 250.4913]}}, "eiAggNote": "Divisions 17, 19, 20, 23, 24. DE = Destatis \"Energieintensive Industriezweige\" (official, monthly since 2022, back-cast to 2005). UK = constructed to the same definition, chained Laspeyres on ONS prior-year IoP weights over CVM volume indices (no official UK aggregate exists); band = span of three weighting variants. CN = NBS chemicals + non-metallic minerals + ferrous + non-ferrous on fixed 2007 official value-added weights (the last sector VA levels NBS published); band = 2007-VA vs 2010-revenue weights. Baskets are NOT identical: CN excludes paper and refining."}, "cssWedge": {"measured": [null, null, 14.96, 15.478, 16.297, 14.615, 11.855, 10.463, 11.239, 10.853, 6.415, 7.98, 20.537, 27.918, 17.485, null], "opex": [null, null, 11.692, 11.198, 11.836, 12.456, 9.619, 8.719, 9.149, 9.358, 11.522, 10.155, 14.603, 17.258, 8.093, null], "ebit": [null, null, 3.268, 4.28, 4.461, 2.159, 2.236, 1.744, 2.09, 1.495, -5.107, -2.175, 5.934, 10.66, 9.392, null], "measuredFilled": [14.315, 14.315, 14.96, 15.478, 16.297, 14.615, 11.855, 10.463, 11.239, 10.853, 6.415, 7.98, 20.537, 27.918, 17.485, 14.315], "imputedAvg": 14.315}, "meta": {"workbook": "industrial_electricity_master.xlsx @ D76 / Q106 / S225 (extracted programmatically, openpyxl)", "breaks": "Structural breaks to mark on every chart — UK: line losses in the energy purchase (TLM 1.008 all sizes; LLF 1.000 transmission-connected, 1.024 HV) &mdash; D70 · CfD-ILR 2016 · EII exemptions 2018 → 100% 04/2024 · TCR DUoS 04/2022, TNUoS bands + BSUoS reform 04/2023 · NCC 04/2025 (backdated 04/2024), 90% 04/2026 · wholesale = day-ahead PROXY pre-2022 (D22). DE: §19(2) full exemption 2011, 10% floor 2012–13 (D32), §19 floors 2014+ · BesAR on EEG 2009 rules to 2012, EEG 2012 ladder from 2013 (Q90) · Offshore/SPK 2013 · BesAR-2014 redesign · KWKG/Offshore privileged rates company-specific 2017/2019 (E2=E1, D25) · DE-AT split 10/2018 · EEG→0 07/2022, budget 2023 · ÜNB harmonisation 2023 · €6.5bn subsidy 2026 (incidence iii). CN: renormalised basket, coverage row shown (D23) · 2021-10 catalogue end (2021 = Jan–Sep basis) · 代理购电 12/2021 · 526号 06/2023 · 容量电价 2024 · 136号文 06/2025 · 1077号 08/2026 (month-weighted, D13-R). CN E1=E2 (no formal exemption regime — functional equivalents owned in text).", "archetypes": {"large": "UK — LARGE archetype (500 GWh, 8,000h, transmission-connected, Humber zone 5). Nominal £/MWh.", "medium": "UK — MEDIUM archetype (20 GWh, 5,000h, HV distribution, NPg Yorkshire). Nominal £/MWh."}, "d24": "UK/DE medium archetype E2 assumes the site holds EII/BesAR status (D24) — stated on every E2 chart."}, "daIndexed": {"UK": [131.5226, 144.3375, 140.8638, 157.0502, 151.9583, 146.8354, 140.3414, 145.7391, 180.3943, 160.1506, 154.8749, 309.3457, 369.1566, 222.0451, 202.7583, 213.4328], "DE": [null, 221.9101, 188.7771, 215.6675, 220.5586, 182.4741, 179.0522, 202.4626, 225.2331, 196.5226, 193.9418, 282.0916, 343.6095, 160.0395, 155.3597, 170.2092], "note": "E1 stack re-priced at day-ahead wholesale of the delivery year; headline E1 uses the procurement convention (UK rolling year-ahead from 2022, day-ahead proxy before per D22; DE Phelix front-year, trading year Y-1). Nominal-local sensitivity rows timeseries r101/r102, converted at the same per-year FX+deflator factors as the headline series. UK_E2 / DE_E2 are the exempt-case stacks re-priced at day-ahead: E2 + (E1_dayahead - E1), on the D71 basis (E2 carries no CCL). Exemptions do not touch the wholesale line, so the displacement is identical in either case and the construction is exact. Medium-archetype variants (_med) are computed separately from timeseries r111 for the UK, because the line-loss gross-up added in D70 differs by archetype (0.8% transmission-connected vs 3.2% HV), so the year-ahead/day-ahead displacement is no longer identical in absolute terms at the two sizes. The German _med variant still uses the shared displacement, correctly: German losses sit inside the Netzentgelt and take no customer-side gross-up.", "DE_E2": [null, 134.1674, 107.6279, 101.3977, 92.0371, 75.2587, 70.0868, 84.3482, 101.6439, 88.9881, 79.1343, 171.8426, 304.2539, 141.417, 102.2129, 122.1669], "UK_E2": [120.7801, 133.1736, 129.5221, 145.6908, 139.7944, 135.298, 129.7185, 133.7136, 132.9346, 98.9932, 89.9082, 245.843, 321.2074, 168.9489, 110.4068, 124.0496], "UK_E2_med": [144.0975, 157.1516, 153.1747, 169.8679, 165.7432, 160.6751, 154.5123, 157.7493, 164.4522, 131.5387, 119.3567, 281.1809, 346.1873, 179.3271, 117.4488, 129.2982], "DE_E2_med": [null, 170.2165, 143.3891, 143.1748, 146.6337, 121.7554, 119.5649, 135.297, 154.2226, 135.3018, 129.0277, 224.7258, 340.25, 176.7367, 151.7025, 167.2977]}, "deWedge": {"measured": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 20.0116], "measuredFilled": [20.0116, 20.0116, 20.0116, 20.0116, 20.0116, 20.0116, 20.0116, 20.0116, 20.0116, 20.0116, 20.0116, 20.0116, 20.0116, 20.0116, 20.0116, 20.0116], "heldConstant": 20.0116, "basis": "BNetzA \"Vertrieb und Marge\"", "note": "BNetzA/Bundeskartellamt Monitoringbericht 2025, Industriekunde 24 GWh/a (RLM, Mittelspannung, 6,000 h / 4 MW, ohne Verguenstigungen), price date 01.04.2025, mean of 127 reporting suppliers: 1.77 ct/kWh = EUR 17.7/MWh = $20.01/MWh at the 2025 annual-average FX (1.1306). Held CONSTANT IN REAL TERMS across the chart span - the 2025 Monitoringbericht is the first edition to split the supply block for non-household cases, so no earlier industrial observation exists. Concept-matched to the UK CSS segment (selling cost + margin together). The surveyed case sits almost exactly on the MEDIUM archetype (20 GWh/a) and is a CEILING for the LARGE one (>150 GWh/a), where the size gradient - 30.3 EUR/MWh at 50 MWh, 17.7 at 24 GWh, ~0 at 70-150 GWh (Fraunhofer ISI) - points sharply down. Q89 / S182.", "dispersionP90": 63.5, "eonMarginOnly": [null, null, null, null, null, null, null, null, null, null, null, 4.4338, 5.3054, 8.0115, 7.2456, 8.5086], "eonNote": "Cross-check, profit slice only: E.ON Energy Retail Germany column, adjusted EBITDA divided by German customer-group volume (power + gas), real 2025 USD/MWh, 2021-25. EBITDA is already net of the supplier own selling cost, so this is the margin inside the BNetzA figure, not a substitute for it. Basis break: 2021-22 Customer Solutions, 2023-25 Energy Retail. S184 / S188."}, "srmc": {"uk": {"da": [44.96, 48.2, 45.21, 50.8, 42.43, 40.75, 42.63, 46.31, 58.23, 43.74, 36.94, 127.47, 211.85, 97.3, 75.69, 83.93], "c": [null, null, null, 49.42, 39.36, 37.64, 32.04, 39.09, 52.97, 38.45, 31.72, 103.33, 176.47, 94.91, 77.52, 84.72], "lo": [null, null, null, 44.93, 35.78, 34.22, 29.13, 35.53, 48.15, 34.96, 28.83, 93.94, 160.43, 86.28, 70.47, 77.02], "hi": [null, null, null, 53.72, 42.78, 40.91, 34.83, 42.49, 57.57, 41.79, 34.48, 112.32, 191.82, 103.16, 84.26, 92.09]}, "de": {"da": [44.49, 51.12, 42.6, 37.78, 32.76, 31.63, 28.98, 34.19, 44.47, 37.67, 30.47, 96.85, 235.45, 95.18, 78.51, 89.32], "c": [null, null, 52.38, 55.58, 43.76, 42.38, 29.92, 36.52, 51.05, 36.22, 27.8, 113.6, 279.42, 112.62, 92.99, 99.08], "lo": [null, null, 47.62, 50.53, 39.78, 38.53, 27.2, 33.2, 46.41, 32.93, 25.27, 103.27, 254.02, 102.38, 84.53, 90.07], "hi": [null, null, 56.94, 60.42, 47.56, 46.07, 32.53, 39.7, 55.49, 39.37, 30.22, 123.48, 303.72, 122.41, 101.07, 107.69]}, "note": "Q94 identity test, nominal LOCAL currency (deliberate exception to the real-USD house rule: an identity between two market prices is stated in the market’s own units; converting both sides by the same factor changes nothing). SRMC = (hub gas HHV + carbon x 0.18296 tCO2/MWh_th)/efficiency; corridor 46-55%, central 50%. Sources S198/S199; workbook timeseries r119-125; staging gas_srmc_staging.md. UK gas 2010-13+2017 and TTF 2010-20 are EI-SR-derived (secondary, flagged). SRMC starts 2013 UK / 2012 DE where the workbook carbon series start."}, "lcoeAnchors": [{"c": "CN", "tech": "Coal", "lo": null, "hi": 66.7, "th": 1}, {"c": "CN", "tech": "Gas CCGT", "lo": null, "hi": 102.6, "th": 1}, {"c": "CN", "tech": "Onshore wind", "lo": null, "hi": 41.1, "th": 0}, {"c": "CN", "tech": "Solar PV", "lo": null, "hi": 46.2, "th": 0}, {"c": "UK", "tech": "Gas CCGT", "lo": null, "hi": 186.4, "th": 1}, {"c": "UK", "tech": "Onshore wind", "lo": null, "hi": 62.1, "th": 0}, {"c": "UK", "tech": "Solar PV", "lo": null, "hi": 67.0, "th": 0}, {"c": "UK", "tech": "Offshore wind", "lo": null, "hi": 72.0, "th": 0}, {"c": "DE", "tech": "Gas CCGT", "lo": 121.0, "hi": 201.0, "th": 1}, {"c": "DE", "tech": "Onshore wind", "lo": 47.8, "hi": 102.2, "th": 0}, {"c": "DE", "tech": "Solar PV", "lo": 45.5, "hi": 76.6, "th": 0}, {"c": "DE", "tech": "Offshore wind", "lo": 61.1, "hi": 114.4, "th": 0}, {"c": "CN", "tech": "Nuclear", "lo": 71.8, "hi": 84.6, "th": 1}, {"c": "DE", "tech": "Nuclear new-build", "lo": 151.0, "hi": 544.1, "th": 1}, {"c": "UK", "tech": "Nuclear (Hinkley C)", "lo": null, "hi": 170.1, "th": 1}, {"c": "DE", "tech": "Nuclear restart", "lo": 41.8, "hi": 80.3, "th": 1}], "nuc": {"groups": [["Keeping or reviving existing reactors", [["Life extension (OECD/NEA benchmark)", "XX", 28.6, 41.1, 0], ["Germany - fleet restart", "DE", 41.8, 80.3, 0]]], ["New build - modelled at a common 7% cost of capital (OECD/NEA 2020)", [["Russia (VVER)", "XX", null, 53.9, 0], ["South Korea (ALWR)", "XX", null, 68.3, 0], ["China (LWR)", "CN", null, 84.6, 0], ["India (LWR)", "XX", null, 84.7, 0], ["France (EPR)", "XX", null, 91.2, 0], ["United States (LWR)", "XX", null, 91.4, 0], ["Japan (ALWR)", "XX", null, 111.1, 0], ["Slovakia", "XX", null, 130.6, 0]]], ["New build - out-turns and contracted prices", [["UAE - Barakah 1\u20134 out-turn proxy", "XX", 82.1, 94.1, 1], ["UK - Hinkley C contracted price", "UK", null, 170.1, 1], ["US - Vogtle 3&4 out-turn proxy", "XX", null, 175.9, 1], ["France - Flamanville 3 requirement", "XX", null, 201.2, 1]]]], "note": "Real 2025 USD/MWh. Rows: [label, country, lo, hi, outturn]. Sources: OECD/NEA EGC 2020 T3.13a @7% (workbook nuclear_global A, col H real-2025); LTO T8.1 (20yr 28.6 - 10yr 41.1); Radiant 2026 restart; NAO 2026 HPC; Vogtle broader in-service proxy r27; Cour des comptes 2025 Flamanville r29; Barakah = own proxy, capital $24.4bn (ENEC financing, 2016) to $32bn (reported total, 2020) x CRF(7%,60) / (4 x 1,337 MWe x 90% CF) + NEA O&M+fuel 20.93 (2018 USD); workbook nuclear_global section F, D79."}, "grid": {"ukLgE1": [7.916, 9.45, 10.194, 11.312, 13.485, 14.384, 14.782, 14.189, 15.161, 15.981, 17.925, 21.922, 22.044, 29.834, 24.99, 30.297], "ukLgE2": [7.916, 9.45, 10.194, 11.312, 13.485, 14.384, 14.782, 14.189, 15.161, 15.981, 17.925, 21.922, 22.044, 29.834, 10.328, 12.443], "ukMdE1": [28.753, 30.751, 31.416, 32.832, 37.133, 37.714, 37.701, 36.328, 44.266, 46.825, 45.947, 52.217, 40.049, 37.118, 36.59, 36.722], "ukMdE2": [28.753, 30.751, 31.416, 32.832, 37.133, 37.714, 37.701, 36.328, 44.266, 46.825, 45.947, 52.217, 40.049, 37.118, 14.968, 15.013], "deLgE1": [7.494, 8.128, 9.33, 9.818, 9.505, 9.392, 10.189, 12.105, 17.929, 14.426, 16.597, 16.67, 16.202, 16.993, 35.073, 33.689], "deLgE2": [null, 0, 1.298, 1.359, 2.645, 2.524, 2.647, 3.174, 4.635, 3.705, 4.251, 4.288, 4.073, 4.234, 8.572, 8.259], "deMdE1": [29.956, 29.11, 31.105, 34.6, 36.648, 32.271, 34.747, 35.598, 38.513, 33.678, 36.732, 40.621, 36.481, 39.825, 53.889, 53.658], "deMdE2": [null, 29.11, 30.677, 34.164, 36.218, 31.913, 34.395, 35.245, 38.153, 33.344, 36.395, 40.288, 36.206, 39.554, 53.626, 53.39], "wiresLg": [5.406, 5.995, 6.839, 7.296, 8.955, 9.866, 10.079, 9.907, 9.859, 10.077, 10.028, 10.615, 9.372, 11.8, 12.003, 12.864], "wiresMd": [26.242, 27.295, 28.06, 28.817, 32.603, 33.197, 32.997, 32.046, 38.963, 40.922, 38.05, 40.91, 27.377, 19.085, 23.604, 19.289], "bsuos": [2.511, 3.455, 3.356, 4.015, 4.53, 4.517, 4.703, 4.282, 5.303, 5.904, 7.897, 11.307, 12.672, 18.033, 12.986, 17.433], "note": "real 2025 USD/MWh; ef 3 Network + 4 System from data_lineitems; DE 2024 on the final 13.12.2023 Preisblatt (Q99)"}};
